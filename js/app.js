@@ -101,6 +101,16 @@ const App = {
           if (!s.clientStatus)   s.clientStatus   = 'B';
           if (!s.arrivalWay)     s.arrivalWay     = 'sukarela';
           if (!s.targetAudience) s.targetAudience = 'pelajar';
+
+          // PENYELARASAN KHAS: BIMBINGAN BAGI KELAS (KELAS GANTI GURU LAIN)
+          if (s.type === 'bimbingan') {
+            s.clientStatus = 'D/J'; // Status: DIRUJUK (D/J)
+            s.arrivalWay = 'rujukan'; // Cara Rujuk: RUJUKAN
+            s.focus = this.detectBimbinganFocus(s.title, s.classTarget, s.notes);
+            if (!s.notes || s.notes === '') {
+              s.notes = 'Kelas ganti guru lain - diisi dengan aktiviti bimbingan kelas.';
+            }
+          }
         });
       }
     });
@@ -111,6 +121,44 @@ const App = {
     // Muat kadar dokumentasi automatik (piawai: 30 minit)
     const savedDocRate = localStorage.getItem("ubk_doc_rate");
     this.state.docRate = savedDocRate !== null ? (parseInt(savedDocRate, 10) || 0) : 30;
+  },
+
+  // =========================================================
+  // ENJIN PENGENALPASTI FOKUS UTAMA PERKHIDMATAN BIMBINGAN KELAS (4 BIDANG KPM)
+  // =========================================================
+  detectBimbinganFocus: function(title = "", classTarget = "", notes = "") {
+    const text = `${title || ""} ${classTarget || ""} ${notes || ""}`.toUpperCase();
+    
+    // 1. Pendidikan Kerjaya Murid (Bidang 3 KPM)
+    if (text.includes("KERJAYA") || text.includes("CITA-CITA") || text.includes("PEKERJAAN") || text.includes("HALA TUJU") || text.includes("MATLAMAT KERJAYA")) {
+      return "kerjaya";
+    }
+    
+    // 2. Peningkatan Disiplin Diri Murid (Bidang 2 KPM)
+    if (text.includes("DISIPLIN") || text.includes("PONTENG") || text.includes("LEWAT") || text.includes("PERATURAN") || text.includes("SALAH LAKU") || text.includes("BULI") || text.includes("PENGURUSAN MASA")) {
+      return "disiplin";
+    }
+    
+    // 3. Psikososial & Kesejahteraan Mental Murid (Bidang 4 KPM)
+    if (text.includes("EMOSI") || text.includes("MINDA SIHAT") || text.includes("STRES") || text.includes("KESEJAHTERAAN") || text.includes("PSIKOSOSIAL") || text.includes("PERKHIDMATAN UBK") || text.includes("KENALI UBK") || text.includes("BIMBINGAN RAKAN")) {
+      return "psikososial";
+    }
+
+    // 4. PPDa / Akademik jika khusus
+    if (text.includes("PPDA") || text.includes("DADAH") || text.includes("VAPE") || text.includes("ROKOK") || text.includes("ALKOHOL") || text.includes("INHALAN")) {
+      return "ppda";
+    }
+    if (text.includes("AKADEMIK") || text.includes("TEKNIK BELAJAR") || text.includes("PEPERIKSAAN") || text.includes("PBD") || text.includes("ULANGKAJI")) {
+      return "akademik";
+    }
+
+    // 5. Pembangunan & Perkembangan Sahsiah Diri Murid (Bidang 1 KPM)
+    if (text.includes("KENALI DIRI") || text.includes("KENAL DIRI") || text.includes("TENTANG SAYA") || text.includes("RUMAH SAYA") || text.includes("KONSEP KENDIRI") || text.includes("SAHSIAH") || text.includes("JATI DIRI") || text.includes("NILAI") || text.includes("ADAB") || text.includes("KASIH SAYANG") || text.includes("MOTIVASI")) {
+      return "sahsiah";
+    }
+
+    // Lalai untuk Bimbingan Kelas / Kelas Ganti: Sahsiah (Bidang Asas IPGM)
+    return "sahsiah";
   },
 
   // =========================================================
@@ -3980,6 +4028,8 @@ const App = {
     if (targetAudienceEl) targetAudienceEl.value = "pelajar";
     const classFilterEl = document.getElementById("formStudentClassFilter");
     if (classFilterEl) classFilterEl.value = "";
+    const bimbinganNotice = document.getElementById("bimbinganNoticeBox");
+    if (bimbinganNotice) bimbinganNotice.style.display = "none";
 
     // Reset murid terpilih & carian
     this.state.selectedStudentsInForm = [];
@@ -4039,11 +4089,29 @@ const App = {
 
     // Muat medan IPGM
     const focusEl = document.getElementById("formFocus");
-    if (focusEl) focusEl.value = session.focus || "sahsiah";
+    if (focusEl) {
+      if (session.type === "bimbingan") {
+        focusEl.value = session.focus || this.detectBimbinganFocus(session.title, session.classTarget, session.notes);
+      } else {
+        focusEl.value = session.focus || "sahsiah";
+      }
+    }
     const clientStatusEl = document.getElementById("formClientStatus");
-    if (clientStatusEl) clientStatusEl.value = session.clientStatus || "B";
+    if (clientStatusEl) {
+      if (session.type === "bimbingan") {
+        clientStatusEl.value = "D/J";
+      } else {
+        clientStatusEl.value = session.clientStatus || "B";
+      }
+    }
     const arrivalWayEl = document.getElementById("formArrivalWay");
-    if (arrivalWayEl) arrivalWayEl.value = session.arrivalWay || "sukarela";
+    if (arrivalWayEl) {
+      if (session.type === "bimbingan") {
+        arrivalWayEl.value = "rujukan";
+      } else {
+        arrivalWayEl.value = session.arrivalWay || "sukarela";
+      }
+    }
     const targetAudienceEl = document.getElementById("formTargetAudience");
     if (targetAudienceEl) targetAudienceEl.value = session.targetAudience || "pelajar";
     const classFilterEl = document.getElementById("formStudentClassFilter");
@@ -4072,6 +4140,9 @@ const App = {
       }
     }
 
+    const bimbinganNotice = document.getElementById("bimbinganNoticeBox");
+    if (bimbinganNotice) bimbinganNotice.style.display = (session.type === "bimbingan") ? "block" : "none";
+
     document.getElementById("sessionModal").classList.add("active");
     this.updateFormSaveBtnColor();
     this.checkFormConflict();
@@ -4094,6 +4165,46 @@ const App = {
       } else if (type === "pentadbiran" || type === "cuti") {
         headcountEl.value = "0";
       }
+    }
+
+    // PENYELARASAN KHAS: BIMBINGAN BAGI KELAS (KELAS GANTI GURU LAIN)
+    if (type === "bimbingan") {
+      // 1. Set Status Klien kepada DIRUJUK (D/J)
+      const clientStatusEl = document.getElementById("formClientStatus");
+      if (clientStatusEl) clientStatusEl.value = "D/J";
+
+      // 2. Set Cara Hadir kepada RUJUKAN (Rujukan Guru / Guru Ganti)
+      const arrivalWayEl = document.getElementById("formArrivalWay");
+      if (arrivalWayEl) arrivalWayEl.value = "rujukan";
+
+      // 3. Kenalpasti fokus utama perkhidmatan berdasarkan tajuk atau label
+      const title = document.getElementById("formTitle")?.value || "";
+      const classTarget = document.getElementById("formClassTarget")?.value || "";
+      const notes = document.getElementById("formNotes")?.value || "";
+      const detectedFocus = this.detectBimbinganFocus(title, classTarget, notes);
+      const focusEl = document.getElementById("formFocus");
+      if (focusEl) focusEl.value = detectedFocus;
+
+      // 4. Auto-isi nota jika masih kosong
+      const notesEl = document.getElementById("formNotes");
+      if (notesEl && (!notesEl.value || notesEl.value.trim() === "")) {
+        notesEl.value = "Kelas ganti guru lain - diisi dengan aktiviti bimbingan kelas.";
+      }
+    }
+
+    const noticeBox = document.getElementById("bimbinganNoticeBox");
+    if (noticeBox) {
+      noticeBox.style.display = (type === "bimbingan") ? "block" : "none";
+    }
+  },
+
+  handleFormTitleChange: function(title) {
+    const type = document.getElementById("formType")?.value;
+    if (type === "bimbingan") {
+      const classTarget = document.getElementById("formClassTarget")?.value || "";
+      const detectedFocus = this.detectBimbinganFocus(title, classTarget);
+      const focusEl = document.getElementById("formFocus");
+      if (focusEl) focusEl.value = detectedFocus;
     }
   },
 
@@ -4216,11 +4327,21 @@ const App = {
       classTarget = students[0].className;
     }
 
-    const focus          = document.getElementById("formFocus")?.value || "sahsiah";
-    const clientStatus   = document.getElementById("formClientStatus")?.value || "B";
-    const arrivalWay     = document.getElementById("formArrivalWay")?.value || "sukarela";
+    let focus          = document.getElementById("formFocus")?.value || "sahsiah";
+    let clientStatus   = document.getElementById("formClientStatus")?.value || "B";
+    let arrivalWay     = document.getElementById("formArrivalWay")?.value || "sukarela";
     const targetAudience = document.getElementById("formTargetAudience")?.value || "pelajar";
     const sessionTag     = document.getElementById("formSessionTag")?.value || "";
+
+    // PENETAPAN KHAS UNTUK BIMBINGAN BAGI KELAS (KELAS GANTI GURU LAIN)
+    if (type === 'bimbingan') {
+      focus = this.detectBimbinganFocus(title, classTarget, notes) || focus || "sahsiah";
+      clientStatus = "D/J"; // Status: DIRUJUK
+      arrivalWay = "rujukan"; // Cara Hadir: RUJUKAN
+      if (!notes || notes.trim() === "") {
+        notes = "Kelas ganti guru lain - diisi dengan aktiviti bimbingan kelas.";
+      }
+    }
 
     const sessionObj = { 
       day, 
@@ -6211,10 +6332,10 @@ const App = {
       }
 
       // Status (B / K / D/J)
-      const st = s.clientStatus || 'B';
-      const isB = st === 'B' ? '1' : '';
-      const isK = st === 'K' ? '1' : '';
-      const isDJ = st === 'D/J' ? '1' : '';
+      const st = s.clientStatus || (s.type === 'bimbingan' ? 'D/J' : 'B');
+      const isB = (st === 'B' && s.type !== 'bimbingan') ? '1' : '';
+      const isK = (st === 'K' && s.type !== 'bimbingan') ? '1' : '';
+      const isDJ = (st === 'D/J' || st === 'DIRUJUK' || st === 'D' || s.type === 'bimbingan') ? '1' : '';
       if (isB) totStatusB++;
       if (isK) totStatusK++;
       if (isDJ) totStatusDJ++;
@@ -6251,15 +6372,23 @@ const App = {
       let emel_l = '', emel_p = '';
       let tel_l = '', tel_p = '';
 
-      const arr = s.arrivalWay || 'sukarela';
-      if (arr === 'rujukan') {
-        if (gender === 'L') { ruj_l = '1'; totRujuk_L++; } else { ruj_p = '1'; totRujuk_P++; }
-      } else if (arr === 'emel') {
-        if (gender === 'L') { emel_l = '1'; totEmel_L++; } else { emel_p = '1'; totEmel_P++; }
-      } else if (arr === 'telefon') {
-        if (gender === 'L') { tel_l = '1'; totTel_L++; } else { tel_p = '1'; totTel_P++; }
+      if (s.type === 'bimbingan') {
+        // Bimbingan Kelas ialah Kelas Ganti Guru Lain -> Cara Hadir: RUJUKAN
+        ruj_l = bim_l;
+        ruj_p = bim_p;
+        totRujuk_L += parseInt(bim_l, 10) || 0;
+        totRujuk_P += parseInt(bim_p, 10) || 0;
       } else {
-        if (gender === 'L') { suka_l = '1'; totSuka_L++; } else { suka_p = '1'; totSuka_P++; }
+        const arr = s.arrivalWay || 'sukarela';
+        if (arr === 'rujukan') {
+          if (gender === 'L') { ruj_l = '1'; totRujuk_L++; } else { ruj_p = '1'; totRujuk_P++; }
+        } else if (arr === 'emel') {
+          if (gender === 'L') { emel_l = '1'; totEmel_L++; } else { emel_p = '1'; totEmel_P++; }
+        } else if (arr === 'telefon') {
+          if (gender === 'L') { tel_l = '1'; totTel_L++; } else { tel_p = '1'; totTel_P++; }
+        } else {
+          if (gender === 'L') { suka_l = '1'; totSuka_L++; } else { suka_p = '1'; totSuka_P++; }
+        }
       }
 
       // Sasaran (Pelajar L/P)
