@@ -176,6 +176,9 @@
         <!-- Panel "Hari Ini Sekilas Pandang" (Auto-populated) -->
         <div id="todayDashboard"></div>
 
+        <!-- Panel Pintar: Cadangan Sesi Seterusnya Klien Sedia Ada (Smart Auto-Suggest) -->
+        <div id="clientNextSessionSuggestionsWidget" style="margin-bottom: 1rem; display: none;"></div>
+
         <!-- Jadual Grid 5 Hari (Isnin - Jumaat) dengan Butang Cetak Harian pada Header -->
         <div id="weeklyTimetableContainer" class="timetable-container">
           <table class="timetable-grid">
@@ -980,9 +983,35 @@
             </div>
           </div>
 
-          <!-- Pilihan Cepat Waktu Standard Sekolah -->
-          <div class="time-preset-container">
-            <span class="time-preset-label">⚡ Pilih Waktu Standard:</span>
+          <!-- Pilihan Cepat Waktu Standard Sekolah (1 Jam & 30 Minit) -->
+          <div class="time-preset-container" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+              <span class="time-preset-label" style="font-weight: 800; color: #1e3a8a;">
+                ⏱️ Waktu Sekolah SK Tampasuk 1 (Auto-Loceng PdPC):
+              </span>
+              <button type="button" class="btn btn-sm" onclick="App.autoSetSchoolHoursForCurrentForm()" style="background: #15803d; color: white; font-size: 0.72rem; padding: 2px 8px; font-weight: 700; border-radius: 4px;" title="Auto-set jam terbaik yang bebas subjek teras untuk kelas murid ini">
+                ⚡ Auto-Set Jam Sekolah Sesuai
+              </button>
+            </div>
+            
+            <!-- Blok 1 Jam (2 Waktu PdPC - Piawai Sesi Kaunseling) -->
+            <div style="font-size: 0.72rem; font-weight: 700; color: #0369a1; margin-bottom: 3px;">
+              🌟 Sesi 1 Jam (2 Waktu Persekolahan):
+            </div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;">
+              <button type="button" class="preset-btn" onclick="App.fillTimePreset('07.10','08.10')" title="Waktu 1 & 2 (07.10 - 08.10)">07.10-08.10 (W1-2)</button>
+              <button type="button" class="preset-btn" onclick="App.fillTimePreset('07.40','08.40')" title="Waktu 2 & 3 (07.40 - 08.40)">07.40-08.40 (W2-3)</button>
+              <button type="button" class="preset-btn" onclick="App.fillTimePreset('08.10','09.10')" title="Waktu 3 & 4 (08.10 - 09.10)">08.10-09.10 (W3-4)</button>
+              <button type="button" class="preset-btn" onclick="App.fillTimePreset('08.40','09.40')" title="Waktu 4 & 5 (08.40 - 09.40)">08.40-09.40 (W4-5)</button>
+              <button type="button" class="preset-btn" onclick="App.fillTimePreset('10.40','11.40')" title="Waktu 7 & 8 (10.40 - 11.40)">10.40-11.40 (W7-8)</button>
+              <button type="button" class="preset-btn" onclick="App.fillTimePreset('11.10','12.10')" title="Waktu 8 & 9 (11.10 - 12.10)">11.10-12.10 (W8-9)</button>
+              <button type="button" class="preset-btn" onclick="App.fillTimePreset('11.40','12.40')" title="Waktu 9 & 10 (11.40 - 12.40)">11.40-12.40 (W9-10)</button>
+            </div>
+
+            <!-- Blok 30 Minit (1 Waktu PdPC) -->
+            <div style="font-size: 0.72rem; font-weight: 700; color: #475569; margin-bottom: 3px;">
+              ⏱️ Sesi 30 Minit (1 Waktu Persekolahan):
+            </div>
             <div class="time-preset-grid">
               <button type="button" class="preset-btn" onclick="App.fillTimePreset('07.00','07.40')" title="Perhimpunan (Isnin)">PH</button>
               <button type="button" class="preset-btn" onclick="App.fillTimePreset('07.10','07.40')" title="Waktu 1">W1</button>
@@ -990,8 +1019,8 @@
               <button type="button" class="preset-btn" onclick="App.fillTimePreset('08.10','08.40')" title="Waktu 3">W3</button>
               <button type="button" class="preset-btn" onclick="App.fillTimePreset('08.40','09.10')" title="Waktu 4">W4</button>
               <button type="button" class="preset-btn" onclick="App.fillTimePreset('09.10','09.40')" title="Waktu 5">W5</button>
-              <button type="button" class="preset-btn preset-break" onclick="App.fillTimePreset('09.40','10.10')" title="Waktu Rehat">☕</button>
-              <button type="button" class="preset-btn" onclick="App.fillTimePreset('10.10','10.40')" title="Waktu 6">W6</button>
+              <button type="button" class="preset-btn preset-break" onclick="App.fillTimePreset('09.40','10.10')" title="Waktu Rehat Tahap 1">☕ R1</button>
+              <button type="button" class="preset-btn preset-break" onclick="App.fillTimePreset('10.10','10.40')" title="Waktu Rehat Tahap 2">☕ R2</button>
               <button type="button" class="preset-btn" onclick="App.fillTimePreset('10.40','11.10')" title="Waktu 7">W7</button>
               <button type="button" class="preset-btn" onclick="App.fillTimePreset('11.10','11.40')" title="Waktu 8">W8</button>
               <button type="button" class="preset-btn" onclick="App.fillTimePreset('11.40','12.10')" title="Waktu 9">W9</button>
@@ -1202,12 +1231,12 @@
   <!-- JavaScript Modules -->
   <script src="data/jadualKelas.js"></script>
   <script src="data/jadualGuru.js"></script>
-  <script src="data/jadualPraktikum.js?v=20260927_06"></script>
+  <script src="data/jadualPraktikum.js?v=20260927_07"></script>
   <script src="data/muridData.js"></script>
   <script src="data/takwim.js"></script>
   <script src="js/suggester.js"></script>
-  <script src="js/cloudSync.js?v=20260927_06"></script>
-  <script src="js/app.js?v=20260927_06"></script>
+  <script src="js/cloudSync.js?v=20260927_07"></script>
+  <script src="js/app.js?v=20260927_07"></script>
 
 </body>
 </html>
