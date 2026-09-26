@@ -51,6 +51,9 @@
             <span>⚡</span> Alat Praktikum ▾
           </button>
           <div class="dropdown-menu" id="toolsDropdownMenu">
+            <button class="dropdown-item" onclick="App.runPracticumAudit()" style="color: #047857; font-weight: 700;">
+              <span>🛡️</span> Semak Integriti Praktikum (Audit IPGM)
+            </button>
             <button class="dropdown-item" onclick="App.autoTagExistingSessions(false)" style="color: #1e3a8a; font-weight: 700;">
               <span>🏷️</span> Auto-Tag Siri Sesi (Sesi 1 - 10)
             </button>
@@ -972,6 +975,17 @@
             </div>
           </div>
 
+          <!-- Pengesanan Automatik Kelas Menggantikan Guru (Relief) -->
+          <div id="reliefToggleContainer" style="display: none; margin-bottom: 0.85rem; background: #fefce8; border: 1.5px solid #fde047; border-radius: 8px; padding: 10px 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.82rem; font-weight: 700; color: #854d0e; margin: 0;">
+              <input type="checkbox" id="formIsRelief" onchange="App.handleReliefCheckboxChange(this.checked)" style="transform: scale(1.15); cursor: pointer;">
+              <span>🔁 Kelas Menggantikan Guru (Relief) — Masuk kerana ketiadaan guru mata pelajaran</span>
+            </label>
+            <div style="font-size: 0.72rem; color: #a16207; margin-top: 4px; line-height: 1.35;">
+              Waktu ini diisi dengan aktiviti bimbingan kelompok/kelas berfokus (Format Piawai IPGM/KPM: Status D/J &amp; Hadir Rujukan).
+            </div>
+          </div>
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div class="form-group">
               <label class="form-label" for="formTimeStart">Masa Mula:</label>
@@ -1132,14 +1146,17 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="formTitle">Tajuk Sesi / Aktiviti:</label>
-            <input type="text" id="formTitle" class="form-control" placeholder="Contoh: KI10 atau Kelompok 2 (Urus Emosi)" required oninput="App.handleFormTitleChange(this.value)">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; flex-wrap: wrap; gap: 4px;">
+              <label class="form-label" for="formTitle" style="margin-bottom: 0;">Tajuk Sesi / Aktiviti:</label>
+              <div id="focusAutoDetectedBadge" style="display: none; font-size: 0.72rem; font-weight: 700; color: #1e3a8a; padding: 2px 8px; background: #eff6ff; border-radius: 4px; border: 1px solid #bfdbfe;"></div>
+            </div>
+            <input type="text" id="formTitle" class="form-control" placeholder="Contoh: 5 BESTARI (KENALI DIRI) atau KI10 atau Ponteng Sekolah" required oninput="App.handleSmartTitleAndReliefDetection()">
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div class="form-group">
               <label class="form-label" for="formClassTarget">Kelas Sasaran / Klien:</label>
-              <input type="text" id="formClassTarget" class="form-control" placeholder="Contoh: 4 ARIF atau Murid Individu" oninput="App.handleFormTitleChange(document.getElementById('formTitle')?.value); App.checkFormConflict(); App.renderClassSuggestions();">
+              <input type="text" id="formClassTarget" class="form-control" placeholder="Contoh: 4 ARIF atau Murid Individu" oninput="App.handleSmartTitleAndReliefDetection(); App.checkFormConflict(); App.renderClassSuggestions();">
             </div>
             <div class="form-group">
               <label class="form-label" for="formHeadcount">👥 Bil. Klien Hadir:</label>
@@ -1214,7 +1231,7 @@
 
           <div class="form-group">
             <label class="form-label" for="formNotes">📝 Nota Peribadi Cikgu <span style="font-weight:400; color:#94a3b8;">(Sulit – tidak dicetak untuk murid)</span>:</label>
-            <textarea id="formNotes" class="form-control" rows="2" placeholder="Contoh: Murid ini ada isu ponteng berulang, perlu hubungi ibu bapa minggu depan..."></textarea>
+            <textarea id="formNotes" class="form-control" rows="2" placeholder="Contoh: Murid ini ada isu ponteng berulang, perlu hubungi ibu bapa minggu depan..." oninput="App.handleSmartTitleAndReliefDetection()"></textarea>
           </div>
         </div>
 
@@ -1235,12 +1252,12 @@
   <!-- JavaScript Modules -->
   <script src="data/jadualKelas.js"></script>
   <script src="data/jadualGuru.js"></script>
-  <script src="data/jadualPraktikum.js?v=20260927_08"></script>
+  <script src="data/jadualPraktikum.js?v=20260927_09"></script>
   <script src="data/muridData.js"></script>
   <script src="data/takwim.js"></script>
   <script src="js/suggester.js"></script>
-  <script src="js/cloudSync.js?v=20260927_08"></script>
-  <script src="js/app.js?v=20260927_08"></script>
+  <script src="js/cloudSync.js?v=20260927_09"></script>
+  <script src="js/app.js?v=20260927_09"></script>
 
 </body>
 </html>

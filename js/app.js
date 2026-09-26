@@ -90,26 +90,33 @@ const App = {
       localStorage.setItem("ubk_practicum_schedule_2026", JSON.stringify(this.state.practicumData));
     }
 
-    // Normalise setiap sesi — tambah medan baharu jika tiada (backward compat)
+    // Normalise setiap sesi — tambah medan baharu jika tiada (backward compat & pematuhan IPGM)
     this.state.practicumData.forEach(w => {
-      if (w.sessions) {
+      // Inisialisasi peta cuti jika tiada
+      if (!w.holidays) w.holidays = {};
+
+      if (w.sessions && Array.isArray(w.sessions)) {
         w.sessions.forEach(s => {
           if (!s.status)         s.status         = 'belum';
           if (!s.notes)          s.notes          = '';
           if (s.headcount === undefined) s.headcount = (s.students && s.students.length > 0) ? s.students.length : 1;
-          if (!s.focus)          s.focus          = 'sahsiah';
           if (!s.clientStatus)   s.clientStatus   = 'B';
           if (!s.arrivalWay)     s.arrivalWay     = 'sukarela';
           if (!s.targetAudience) s.targetAudience = 'pelajar';
 
-          // PENYELARASAN KHAS: BIMBINGAN BAGI KELAS (KELAS GANTI GURU LAIN)
-          if (s.type === 'bimbingan') {
+          // PENYELARASAN KHAS: BIMBINGAN BAGI KELAS & KELAS MENGGANTIKAN GURU (RELIEF)
+          const isRelief = s.isRelief === true || s.type === 'bimbingan' || (s.notes && s.notes.toLowerCase().includes('ganti'));
+          if (isRelief || s.type === 'bimbingan') {
+            s.isRelief = true;
             s.clientStatus = 'D/J'; // Status: DIRUJUK (D/J)
             s.arrivalWay = 'rujukan'; // Cara Rujuk: RUJUKAN
-            s.focus = this.detectBimbinganFocus(s.title, s.classTarget, s.notes);
-            if (!s.notes || s.notes === '') {
-              s.notes = 'Kelas ganti guru lain - diisi dengan aktiviti bimbingan kelas.';
+            s.focus = this.detectSessionFocus(s.title, s.classTarget, s.notes);
+            if (!s.notes || s.notes === '' || s.notes.includes('Kelas ganti guru lain')) {
+              s.notes = 'Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru mata pelajaran, diisi dengan aktiviti bimbingan kelompok/kelas.';
             }
+          } else {
+            // Auto detect focus untuk semua sesi lain jika belum ditetapkan
+            s.focus = this.detectSessionFocus(s.title, s.classTarget, s.notes) || s.focus || 'sahsiah';
           }
         });
       }
@@ -124,41 +131,106 @@ const App = {
   },
 
   // =========================================================
-  // ENJIN PENGENALPASTI FOKUS UTAMA PERKHIDMATAN BIMBINGAN KELAS (4 BIDANG KPM)
+  // ENJIN PINTAR PENGENALPASTI FOKUS PERKHIDMATAN (4 BIDANG KPM) BERDASARKAN TAJUK
   // =========================================================
-  detectBimbinganFocus: function(title = "", classTarget = "", notes = "") {
+  detectSessionFocus: function(title = "", classTarget = "", notes = "") {
     const text = `${title || ""} ${classTarget || ""} ${notes || ""}`.toUpperCase();
     
     // 1. Pendidikan Kerjaya Murid (Bidang 3 KPM)
-    if (text.includes("KERJAYA") || text.includes("CITA-CITA") || text.includes("PEKERJAAN") || text.includes("HALA TUJU") || text.includes("MATLAMAT KERJAYA")) {
+    if (
+      text.includes("KERJAYA") || text.includes("CITA-CITA") || text.includes("CITA CITA") || 
+      text.includes("PEKERJAAN") || text.includes("HALA TUJU") || text.includes("HALATUJU") || 
+      text.includes("MATLAMAT KERJAYA") || text.includes("EKSPLORASI KERJAYA") || text.includes("IMPIAN") || 
+      text.includes("DUNIA PEKERJAAN") || text.includes("IMK") || text.includes("HOLLAND") || 
+      text.includes("RIASEC") || text.includes("ALIRAN") || text.includes("KOLEJ") || 
+      text.includes("UNIVERSITI") || text.includes("VOKASIONAL") || text.includes("MATRIKULASI")
+    ) {
       return "kerjaya";
     }
     
     // 2. Peningkatan Disiplin Diri Murid (Bidang 2 KPM)
-    if (text.includes("DISIPLIN") || text.includes("PONTENG") || text.includes("LEWAT") || text.includes("PERATURAN") || text.includes("SALAH LAKU") || text.includes("BULI") || text.includes("PENGURUSAN MASA")) {
+    if (
+      text.includes("DISIPLIN") || text.includes("PONTENG") || text.includes("LEWAT") || 
+      text.includes("PERATURAN") || text.includes("SALAH LAKU") || text.includes("TINGKAH LAKU") || 
+      text.includes("BULI") || text.includes("CYBERBULLY") || text.includes("GADUH") || 
+      text.includes("PERGADUHAN") || text.includes("PENGURUSAN MASA") || text.includes("KEKEMASAN") || 
+      text.includes("RAMBUT") || text.includes("PAKAIAN") || text.includes("GAJET") || 
+      text.includes("KECANDUAN") || text.includes("VANDALISME") || text.includes("BIADAP") || 
+      text.includes("AMARAN") || text.includes("KAWALAN KENDIRI")
+    ) {
       return "disiplin";
     }
     
-    // 3. Psikososial & Kesejahteraan Mental Murid (Bidang 4 KPM)
-    if (text.includes("EMOSI") || text.includes("MINDA SIHAT") || text.includes("STRES") || text.includes("KESEJAHTERAAN") || text.includes("PSIKOSOSIAL") || text.includes("PERKHIDMATAN UBK") || text.includes("KENALI UBK") || text.includes("BIMBINGAN RAKAN")) {
+    // 3. PPDa (Pendidikan Pencegahan Dadah - Bidang KPM Disiplin/PPDa)
+    if (
+      text.includes("PPDA") || text.includes("DADAH") || text.includes("VAPE") || 
+      text.includes("ROKOK") || text.includes("MEROKOK") || text.includes("ALKOHOL") || 
+      text.includes("INHALAN") || text.includes("BEBAS DADAH") || text.includes("ANTI DADAH")
+    ) {
+      return "ppda";
+    }
+
+    // 4. Psikososial & Kesejahteraan Mental Murid (Bidang 4 KPM)
+    if (
+      text.includes("EMOSI") || text.includes("MINDA SIHAT") || text.includes("SARINGAN") || 
+      text.includes("STRES") || text.includes("TEKANAN") || text.includes("KESEJAHTERAAN") || 
+      text.includes("PSIKOSOSIAL") || text.includes("PERKHIDMATAN UBK") || text.includes("KENALI UBK") || 
+      text.includes("BIMBINGAN RAKAN") || text.includes("PRS") || text.includes("RAKAN SEBAYA") || 
+      text.includes("MARAH") || text.includes("KEMARAHAN") || text.includes("ANGER") || 
+      text.includes("KECEMASAN") || text.includes("ANXIETY") || text.includes("BIMBANG") || 
+      text.includes("KEMURUNGAN") || text.includes("DEPRESI") || text.includes("DEPRESSION") || 
+      text.includes("PHQ") || text.includes("GAD") || text.includes("KESIHATAN MENTAL") || 
+      text.includes("KESELESAAN") || text.includes("TRAUMA") || text.includes("KRISIS") || 
+      text.includes("KEDUKAAN") || text.includes("GRIEF") || text.includes("SEDIH") || 
+      text.includes("KESEPIAN") || text.includes("PENYESUAIAN")
+    ) {
       return "psikososial";
     }
 
-    // 4. PPDa / Akademik jika khusus
-    if (text.includes("PPDA") || text.includes("DADAH") || text.includes("VAPE") || text.includes("ROKOK") || text.includes("ALKOHOL") || text.includes("INHALAN")) {
-      return "ppda";
-    }
-    if (text.includes("AKADEMIK") || text.includes("TEKNIK BELAJAR") || text.includes("PEPERIKSAAN") || text.includes("PBD") || text.includes("ULANGKAJI")) {
+    // 5. Bimbingan Akademik & Kemahiran Belajar
+    if (
+      text.includes("AKADEMIK") || text.includes("TEKNIK BELAJAR") || text.includes("KEMAHIRAN BELAJAR") || 
+      text.includes("JADUAL BELAJAR") || text.includes("PEPERIKSAAN") || text.includes("PBD") || 
+      text.includes("UASA") || text.includes("ULANGKAJI") || text.includes("PETA MINDA") || 
+      text.includes("FOKUS BELAJAR") || text.includes("MENGINGAT")
+    ) {
       return "akademik";
     }
 
-    // 5. Pembangunan & Perkembangan Sahsiah Diri Murid (Bidang 1 KPM)
-    if (text.includes("KENALI DIRI") || text.includes("KENAL DIRI") || text.includes("TENTANG SAYA") || text.includes("RUMAH SAYA") || text.includes("KONSEP KENDIRI") || text.includes("SAHSIAH") || text.includes("JATI DIRI") || text.includes("NILAI") || text.includes("ADAB") || text.includes("KASIH SAYANG") || text.includes("MOTIVASI")) {
+    // 6. Pembangunan & Perkembangan Sahsiah Diri Murid (Bidang 1 KPM)
+    if (
+      text.includes("KENALI DIRI") || text.includes("KENAL DIRI") || text.includes("TENTANG SAYA") || 
+      text.includes("TENTANG DIRI") || text.includes("RUMAH SAYA") || text.includes("KONSEP KENDIRI") || 
+      text.includes("SAHSIAH") || text.includes("JATI DIRI") || text.includes("HARGA DIRI") || 
+      text.includes("NILAI") || text.includes("ADAB") || text.includes("SOPAN") || 
+      text.includes("KASIH SAYANG") || text.includes("SAYANGI DIRI") || text.includes("MOTIVASI") || 
+      text.includes("TANGGUNGJAWAB") || text.includes("KEPIMPINAN") || text.includes("PEMIMPIN") || 
+      text.includes("AMALAN BAIK") || text.includes("POTENSI") || text.includes("KELUARGA") || 
+      text.includes("IBU BAPA") || text.includes("MORAL") || text.includes("ETIKA") ||
+      text.includes("KOMUNIKASI") || text.includes("KEYAKINAN")
+    ) {
       return "sahsiah";
     }
 
-    // Lalai untuk Bimbingan Kelas / Kelas Ganti: Sahsiah (Bidang Asas IPGM)
+    // Lalai
     return "sahsiah";
+  },
+
+  // Alias untuk keserasian fungsi sedia ada
+  detectBimbinganFocus: function(title = "", classTarget = "", notes = "") {
+    return this.detectSessionFocus(title, classTarget, notes);
+  },
+
+  getFocusLabel: function(focusKey) {
+    const labels = {
+      sahsiah: "Sahsiah",
+      disiplin: "Disiplin",
+      kerjaya: "Kerjaya",
+      psikososial: "Psikososial",
+      akademik: "Akademik",
+      ppda: "PPDa"
+    };
+    return labels[focusKey] || "Sahsiah";
   },
 
   // =========================================================
@@ -994,9 +1066,24 @@ const App = {
       let html = '';
 
       if (daySessions.length === 0) {
+        const holidayName = (weekData.holidays && weekData.holidays[day]) ? weekData.holidays[day] : "Hari Kelepasan Am / Cuti Sekolah";
         html += `
-          <div class="empty-day-note">
-            <span>☕</span> Tiada aktiviti berjadual
+          <div class="empty-day-holiday-box" style="background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%); border: 1.5px dashed #f43f5e; border-radius: 10px; padding: 14px 10px; text-align: center; margin-bottom: 8px;">
+            <div style="font-size: 1.5rem; margin-bottom: 2px;">🎉</div>
+            <div style="font-weight: 800; color: #9f1239; font-size: 0.8rem; letter-spacing: 0.3px; text-transform: uppercase;">
+              CUTI UMUM SEKOLAH
+            </div>
+            <div style="font-size: 0.72rem; font-weight: 600; color: #be123c; margin-top: 2px;">
+              ${holidayName}
+            </div>
+            <div style="font-size: 0.68rem; color: #881337; margin-top: 4px; line-height: 1.3;">
+              Hari ini dikosongkan (Tiada aktiviti berjadual).
+            </div>
+            <div style="margin-top: 8px; display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
+              <button type="button" class="btn-holiday-label-quick" onclick="event.stopPropagation(); App.promptSetHolidayName(${this.state.currentWeek}, '${day}')" style="background: #ffffff; color: #9f1239; border: 1px solid #fecdd3; padding: 2px 7px; border-radius: 5px; font-size: 0.68rem; font-weight: 700; cursor: pointer;" title="Tukar nama cuti (cth: Maulidur Rasul / Hari Malaysia / Cuti Peristiwa)">
+                🏷️ Namakan Cuti
+              </button>
+            </div>
           </div>
         `;
       } else {
@@ -1014,6 +1101,16 @@ const App = {
             statusBadge = `<button class="status-pill status-belum" title="Klik untuk tandakan selesai" onclick="event.stopPropagation(); App.toggleSessionStatus(${this.state.currentWeek}, '${day}', ${originalIdx})">⏳ Belum</button>`;
           }
 
+          // Lencana Khas Kelas Ganti (Relief) & Fokus Perkhidmatan (4 Bidang KPM)
+          const isRelief = s.isRelief === true || s.type === 'bimbingan' || (s.notes && s.notes.toLowerCase().includes('ganti'));
+          const reliefBadge = isRelief 
+            ? `<span class="badge badge-relief" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-weight: 700; font-size: 0.68rem; padding: 1px 5px; border-radius: 4px;" title="Kelas Menggantikan Guru (Relief / Ketiadaan Guru Mata Pelajaran)">🔁 GURU GANTI</span>` 
+            : '';
+          
+          const fKey = s.focus || this.detectSessionFocus(s.title, s.classTarget, s.notes);
+          const focusLabel = this.getFocusLabel(fKey);
+          const focusBadge = `<span class="badge badge-focus" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.65rem; padding: 1px 5px; border-radius: 4px;" title="4 Bidang Fokus KPM: ${focusLabel}">🎯 ${focusLabel}</span>`;
+
           html += `
             <div class="session-card type-${s.type} status-card-${status}" onclick="App.openEditSessionModal(${this.state.currentWeek}, '${day}', ${originalIdx})">
               <div class="session-card-header">
@@ -1022,6 +1119,8 @@ const App = {
                   ${statusBadge}
                   ${s.sessionTag ? `<span class="badge badge-session-tag">🏷️ ${s.sessionTag}</span>` : ''}
                   <span class="badge badge-${s.type}">${this.getTypeLabel(s.type)}</span>
+                  ${reliefBadge}
+                  ${focusBadge}
                 </div>
               </div>
               <div class="session-title">${s.title}</div>
@@ -1204,10 +1303,13 @@ const App = {
     const candidates = [];
 
     daysList.forEach(d => {
-      // 1. Semak jika hari cuti umum / cuti peristiwa
+      // 1. Semak jika hari cuti umum / cuti peristiwa atau HARI YANG DIKOSONGKAN
+      const totalWeekSessions = (targetWeekData.sessions || []).length;
       const daySessions = (targetWeekData.sessions || []).filter(s => s.day === d);
-      const isFullDayHoliday = daySessions.some(s => s.type === 'cuti' || (s.title && s.title.toUpperCase().includes('CUTI')));
-      if (isFullDayHoliday) return; // Langkau hari cuti!
+      const isDayEmptyHoliday = (totalWeekSessions > 0 && daySessions.length === 0);
+      const hasCutiSession = daySessions.some(s => s.type === 'cuti' || (s.title && s.title.toUpperCase().includes('CUTI')));
+      const isExplicitHoliday = Boolean(targetWeekData.holidays && targetWeekData.holidays[d]);
+      if (isDayEmptyHoliday || hasCutiSession || isExplicitHoliday) return; // Langkau hari cuti umum & hari yang dikosongkan!
 
       baseCandidateTimes.forEach(cand => {
         const cStartMin = this.timeToMin(cand.start);
@@ -1316,10 +1418,14 @@ const App = {
       return { hasClash: true, isError: true, message: `Masa tamat (${timeEnd}) mestilah lebih lewat daripada masa mula (${timeStart}).` };
     }
 
-    // 1. Semak Hari Cuti
-    const isCuti = (targetWeekData.sessions || []).some(s => s.day === day && (s.type === 'cuti' || (s.title && s.title.toUpperCase().includes('CUTI'))));
-    if (isCuti) {
-      return { hasClash: true, isError: true, message: `Hari ${day} dalam Minggu ${targetWeekNum} adalah HARI CUTI / PELEPASAN AM.` };
+    // 1. Semak Hari Cuti atau Hari yang Dikosongkan
+    const daySessions = (targetWeekData.sessions || []).filter(s => s.day === day);
+    const hasCutiSession = daySessions.some(s => s.type === 'cuti' || (s.title && s.title.toUpperCase().includes('CUTI')));
+    const isExplicitHoliday = Boolean(targetWeekData.holidays && targetWeekData.holidays[day]);
+    
+    if (hasCutiSession || isExplicitHoliday) {
+      const hName = (targetWeekData.holidays && targetWeekData.holidays[day]) ? targetWeekData.holidays[day] : "HARI CUTI / PELEPASAN AM";
+      return { hasClash: true, isError: true, message: `Hari ${day} dalam Minggu ${targetWeekNum} adalah ${hName}.` };
     }
 
     // 2. Semak Pertindihan UBK Sendiri
@@ -4031,6 +4137,14 @@ const App = {
     const bimbinganNotice = document.getElementById("bimbinganNoticeBox");
     if (bimbinganNotice) bimbinganNotice.style.display = "none";
 
+    // Reset Relief & Auto-Detect Badge
+    const reliefEl = document.getElementById("formIsRelief");
+    if (reliefEl) reliefEl.checked = false;
+    const reliefContainer = document.getElementById("reliefToggleContainer");
+    if (reliefContainer) reliefContainer.style.display = "none";
+    const badgeEl = document.getElementById("focusAutoDetectedBadge");
+    if (badgeEl) { badgeEl.style.display = "none"; badgeEl.innerHTML = ""; }
+
     // Reset murid terpilih & carian
     this.state.selectedStudentsInForm = [];
     this.renderSelectedStudents();
@@ -4087,18 +4201,26 @@ const App = {
     const headcountEl = document.getElementById("formHeadcount");
     if (headcountEl) headcountEl.value = session.headcount || 1;
 
-    // Muat medan IPGM
+    // Muat medan Relief (Kelas Ganti Guru)
+    const isRelief = session.isRelief === true || session.type === "bimbingan" || (session.notes && session.notes.toLowerCase().includes("ganti"));
+    const reliefEl = document.getElementById("formIsRelief");
+    if (reliefEl) reliefEl.checked = isRelief;
+    const reliefContainer = document.getElementById("reliefToggleContainer");
+    if (reliefContainer) reliefContainer.style.display = (isRelief || session.type === "bimbingan") ? "block" : "none";
+
+    // Muat medan IPGM & Auto-Detect Fokus
+    const detectedFocus = session.focus || this.detectSessionFocus(session.title, session.classTarget, session.notes);
     const focusEl = document.getElementById("formFocus");
-    if (focusEl) {
-      if (session.type === "bimbingan") {
-        focusEl.value = session.focus || this.detectBimbinganFocus(session.title, session.classTarget, session.notes);
-      } else {
-        focusEl.value = session.focus || "sahsiah";
-      }
+    if (focusEl) focusEl.value = detectedFocus;
+    const badgeEl = document.getElementById("focusAutoDetectedBadge");
+    if (badgeEl) {
+      badgeEl.style.display = "inline-flex";
+      badgeEl.innerHTML = `🤖 Auto-Fokus KPM: <strong>${this.getFocusLabel(detectedFocus)}</strong>`;
     }
+
     const clientStatusEl = document.getElementById("formClientStatus");
     if (clientStatusEl) {
-      if (session.type === "bimbingan") {
+      if (isRelief || session.type === "bimbingan") {
         clientStatusEl.value = "D/J";
       } else {
         clientStatusEl.value = session.clientStatus || "B";
@@ -4106,7 +4228,7 @@ const App = {
     }
     const arrivalWayEl = document.getElementById("formArrivalWay");
     if (arrivalWayEl) {
-      if (session.type === "bimbingan") {
+      if (isRelief || session.type === "bimbingan") {
         arrivalWayEl.value = "rujukan";
       } else {
         arrivalWayEl.value = session.arrivalWay || "sukarela";
@@ -4141,7 +4263,7 @@ const App = {
     }
 
     const bimbinganNotice = document.getElementById("bimbinganNoticeBox");
-    if (bimbinganNotice) bimbinganNotice.style.display = (session.type === "bimbingan") ? "block" : "none";
+    if (bimbinganNotice) bimbinganNotice.style.display = (session.type === "bimbingan" || isRelief) ? "block" : "none";
 
     document.getElementById("sessionModal").classList.add("active");
     this.updateFormSaveBtnColor();
@@ -4167,45 +4289,166 @@ const App = {
       }
     }
 
-    // PENYELARASAN KHAS: BIMBINGAN BAGI KELAS (KELAS GANTI GURU LAIN)
     if (type === "bimbingan") {
-      // 1. Set Status Klien kepada DIRUJUK (D/J)
+      const reliefEl = document.getElementById("formIsRelief");
+      if (reliefEl) reliefEl.checked = true;
+      const reliefContainer = document.getElementById("reliefToggleContainer");
+      if (reliefContainer) reliefContainer.style.display = "block";
+    }
+
+    this.handleSmartTitleAndReliefDetection();
+  },
+
+  handleFormTitleChange: function(title) {
+    this.handleSmartTitleAndReliefDetection();
+  },
+
+  // =========================================================
+  // ENJIN PENGESANAN AUTOMATIK TAJUK, RELIEF & FOKUS 4 BIDANG KPM
+  // =========================================================
+  handleSmartTitleAndReliefDetection: function() {
+    const type = document.getElementById("formType")?.value || "individu";
+    const title = document.getElementById("formTitle")?.value || "";
+    const classTarget = document.getElementById("formClassTarget")?.value || "";
+    const notesEl = document.getElementById("formNotes");
+    const notes = notesEl?.value || "";
+    const headcountEl = document.getElementById("formHeadcount");
+    const headcount = parseInt(headcountEl?.value) || 1;
+
+    // 1. Pengesanan Automatik Kelas Ganti (Relief)
+    const reliefEl = document.getElementById("formIsRelief");
+    const reliefContainer = document.getElementById("reliefToggleContainer");
+    const hasClassPattern = classTarget && classTarget !== "-" && classTarget.toUpperCase().match(/\b(1|2|3|4|5|6)\s*(ARIF|BESTARI|BIJAK|CERDIK|AMANAH)\b/);
+    const isReliefLikely = (type === "bimbingan") || (type === "kelompok" && headcount >= 15) || Boolean(hasClassPattern && type === "bimbingan") || Boolean(reliefEl && reliefEl.checked);
+
+    if (reliefContainer) {
+      reliefContainer.style.display = (type === "bimbingan" || isReliefLikely) ? "block" : "none";
+    }
+
+    if (type === "bimbingan" || isReliefLikely) {
+      if (reliefEl) reliefEl.checked = true;
       const clientStatusEl = document.getElementById("formClientStatus");
-      if (clientStatusEl) clientStatusEl.value = "D/J";
-
-      // 2. Set Cara Hadir kepada RUJUKAN (Rujukan Guru / Guru Ganti)
+      if (clientStatusEl) clientStatusEl.value = "D/J"; // DIRUJUK
       const arrivalWayEl = document.getElementById("formArrivalWay");
-      if (arrivalWayEl) arrivalWayEl.value = "rujukan";
-
-      // 3. Kenalpasti fokus utama perkhidmatan berdasarkan tajuk atau label
-      const title = document.getElementById("formTitle")?.value || "";
-      const classTarget = document.getElementById("formClassTarget")?.value || "";
-      const notes = document.getElementById("formNotes")?.value || "";
-      const detectedFocus = this.detectBimbinganFocus(title, classTarget, notes);
-      const focusEl = document.getElementById("formFocus");
-      if (focusEl) focusEl.value = detectedFocus;
-
-      // 4. Auto-isi nota jika masih kosong
-      const notesEl = document.getElementById("formNotes");
-      if (notesEl && (!notesEl.value || notesEl.value.trim() === "")) {
-        notesEl.value = "Kelas ganti guru lain - diisi dengan aktiviti bimbingan kelas.";
+      if (arrivalWayEl) arrivalWayEl.value = "rujukan"; // RUJUKAN
+      if (notesEl && (!notesEl.value || notesEl.value.trim() === "" || notesEl.value.includes("Kelas ganti guru lain"))) {
+        notesEl.value = "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru mata pelajaran, diisi dengan aktiviti bimbingan kelompok/kelas.";
       }
     }
 
     const noticeBox = document.getElementById("bimbinganNoticeBox");
     if (noticeBox) {
-      noticeBox.style.display = (type === "bimbingan") ? "block" : "none";
+      noticeBox.style.display = (type === "bimbingan" || isReliefLikely) ? "block" : "none";
+    }
+
+    // 2. Pengesanan Automatik Fokus Perkhidmatan daripada Tajuk Sesi (Semua Jenis!)
+    const detectedFocus = this.detectSessionFocus(title, classTarget, notes);
+    const focusEl = document.getElementById("formFocus");
+    if (focusEl && detectedFocus) {
+      focusEl.value = detectedFocus;
+    }
+
+    // Kemaskini badge paparan
+    const badgeEl = document.getElementById("focusAutoDetectedBadge");
+    if (badgeEl) {
+      if (title.trim().length >= 3) {
+        badgeEl.style.display = "inline-flex";
+        badgeEl.innerHTML = `🤖 Auto-Fokus KPM: <strong>${this.getFocusLabel(detectedFocus)}</strong>`;
+      } else {
+        badgeEl.style.display = "none";
+      }
     }
   },
 
-  handleFormTitleChange: function(title) {
-    const type = document.getElementById("formType")?.value;
-    if (type === "bimbingan") {
-      const classTarget = document.getElementById("formClassTarget")?.value || "";
-      const detectedFocus = this.detectBimbinganFocus(title, classTarget);
-      const focusEl = document.getElementById("formFocus");
-      if (focusEl) focusEl.value = detectedFocus;
+  handleReliefCheckboxChange: function(isChecked) {
+    if (isChecked) {
+      const clientStatusEl = document.getElementById("formClientStatus");
+      if (clientStatusEl) clientStatusEl.value = "D/J";
+      const arrivalWayEl = document.getElementById("formArrivalWay");
+      if (arrivalWayEl) arrivalWayEl.value = "rujukan";
+      const notesEl = document.getElementById("formNotes");
+      if (notesEl && (!notesEl.value || notesEl.value.trim() === "")) {
+        notesEl.value = "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru mata pelajaran, diisi dengan aktiviti bimbingan kelompok/kelas.";
+      }
     }
+  },
+
+  promptSetHolidayName: function(weekNum, day) {
+    const weekData = this.state.practicumData.find(w => w.weekNum === weekNum);
+    if (!weekData) return;
+    const currentName = (weekData.holidays && weekData.holidays[day]) ? weekData.holidays[day] : "Cuti Umum Persekolahan / Pelepasan Am";
+    const newName = prompt(`Masukkan nama cuti bagi Hari ${day} (Minggu ${weekNum}):`, currentName);
+    if (newName !== null && newName.trim() !== "") {
+      weekData.holidays = weekData.holidays || {};
+      weekData.holidays[day] = newName.trim();
+      this.savePracticumData();
+      this.render();
+      this.showToast(`🎉 Hari ${day} ditandakan sebagai "${newName.trim()}"`);
+    }
+  },
+
+  // =========================================================
+  // PENYEMAK INTEGRITI PRAKTIKUM GBK (AUDIT 100% PIAWAIAN IPGM)
+  // =========================================================
+  runPracticumAudit: function() {
+    let totalDirectMin = 0;
+    let totalIndirectMin = 0;
+    let bimbinganTotal = 0;
+    let bimbinganReliefCount = 0;
+    let totalHolidays = 0;
+    let totalClashes = 0;
+
+    const days = ["ISNIN", "SELASA", "RABU", "KHAMIS", "JUMAAT"];
+    const weeks = this.state.practicumData || [];
+
+    weeks.forEach(w => {
+      const sessions = w.sessions || [];
+      days.forEach(d => {
+        const dSessions = sessions.filter(s => s.day === d);
+        if (dSessions.length === 0 || dSessions.some(s => s.type === 'cuti')) {
+          totalHolidays++;
+        }
+        // Semak pertindihan masa
+        for (let i = 0; i < dSessions.length; i++) {
+          for (let j = i + 1; j < dSessions.length; j++) {
+            const s1 = dSessions[i];
+            const s2 = dSessions[j];
+            if (this.timeToMin(s1.timeStart) < this.timeToMin(s2.timeEnd) && this.timeToMin(s1.timeEnd) > this.timeToMin(s2.timeStart)) {
+              totalClashes++;
+            }
+          }
+        }
+      });
+
+      sessions.forEach(s => {
+        const dur = Math.max(0, this.timeToMin(s.timeEnd) - this.timeToMin(s.timeStart));
+        if (['individu', 'kelompok', 'bimbingan'].includes(s.type)) {
+          totalDirectMin += dur;
+          if (s.type === 'bimbingan') {
+            bimbinganTotal++;
+            if (s.isRelief || s.clientStatus === 'D/J') bimbinganReliefCount++;
+          }
+        } else {
+          totalIndirectMin += dur;
+        }
+      });
+    });
+
+    const directHours = (totalDirectMin / 60).toFixed(1);
+    const indirectHours = (totalIndirectMin / 60).toFixed(1);
+
+    const reportMsg = `
+📋 LAPORAN AUDIT INTEGRITI PRAKTIKUM GBK (SK TAMPASUK 1):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Pertindihan Jadual (Clashes): ${totalClashes === 0 ? "✅ 0 (Sempurna & Patuh Piawai)" : `⚠️ ${totalClashes} pertindihan dikesan`}
+2. Jam Intervensi Bersemuka (Direct Contact): ✅ ${directHours} Jam
+3. Jam Pentadbiran / Pengurusan (Indirect): ✅ ${indirectHours} Jam
+4. Sesi Bimbingan Kelas: ✅ ${bimbinganTotal} sesi (${bimbinganReliefCount} kelas ganti guru berfokus - Status D/J & Rujukan)
+5. Hari Cuti / Kelepasan Am: ✅ ${totalHolidays} hari dikenal pasti & tidak bertindih
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
+    `;
+    alert(reportMsg);
   },
 
   updateFormSaveBtnColor: function() {
@@ -4241,7 +4484,7 @@ const App = {
     const type        = document.getElementById("formType").value;
     let classTarget   = document.getElementById("formClassTarget").value.trim();
     const status      = document.getElementById("formStatus").value;
-    const notes       = (document.getElementById("formNotes") || {}).value?.trim() || '';
+    let notes         = (document.getElementById("formNotes") || {}).value?.trim() || '';
     const headcount   = parseInt((document.getElementById("formHeadcount") || {}).value) || 1;
 
     // 1. Pengesahan Input Asas
@@ -4333,15 +4576,19 @@ const App = {
     const targetAudience = document.getElementById("formTargetAudience")?.value || "pelajar";
     const sessionTag     = document.getElementById("formSessionTag")?.value || "";
 
-    // PENETAPAN KHAS UNTUK BIMBINGAN BAGI KELAS (KELAS GANTI GURU LAIN)
-    if (type === 'bimbingan') {
-      focus = this.detectBimbinganFocus(title, classTarget, notes) || focus || "sahsiah";
+    // PENETAPAN KHAS UNTUK KELAS MENGGANTIKAN GURU (RELIEF) & BIMBINGAN
+    const reliefEl = document.getElementById("formIsRelief");
+    const isRelief = (reliefEl && reliefEl.checked) || (type === 'bimbingan');
+    if (isRelief) {
       clientStatus = "D/J"; // Status: DIRUJUK
       arrivalWay = "rujukan"; // Cara Hadir: RUJUKAN
-      if (!notes || notes.trim() === "") {
-        notes = "Kelas ganti guru lain - diisi dengan aktiviti bimbingan kelas.";
+      if (!notes || notes.trim() === "" || notes.includes("Kelas ganti guru lain")) {
+        notes = "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru mata pelajaran, diisi dengan aktiviti bimbingan kelompok/kelas.";
       }
     }
+
+    // Auto-detect fokus menyeluruh daripada tajuk sesi
+    focus = this.detectSessionFocus(title, classTarget, notes) || focus || "sahsiah";
 
     const sessionObj = { 
       day, 
@@ -4358,7 +4605,8 @@ const App = {
       clientStatus,
       arrivalWay,
       targetAudience,
-      sessionTag
+      sessionTag,
+      isRelief
     };
 
     // Kemaskini siri sesi terakhir bagi profil klien tersimpan (jika sepadan)

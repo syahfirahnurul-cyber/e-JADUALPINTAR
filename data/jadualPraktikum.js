@@ -16,12 +16,12 @@ const PRACTICUM_WEEKS = [
       { day: "ISNIN", timeStart: "07.00", timeEnd: "12.40", title: "LAPOR DIRI HARI PERTAMA", type: "pentadbiran", classTarget: "-" },
       { day: "SELASA", timeStart: "07.10", timeEnd: "08.10", title: "KELOMPOK 1 (KENALI EMOSI) (RUJUKAN UBK)", type: "kelompok", classTarget: "Campuran", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "SELASA", timeStart: "08.40", timeEnd: "12.40", title: "LAWATAN SOSIAL BERSAMA PENSYARAH PENYELIA", type: "program", classTarget: "-" },
-      { day: "RABU", timeStart: "07.10", timeEnd: "08.10", title: "5 BESTARI (KENALI DIRI)", type: "bimbingan", classTarget: "5 BESTARI", focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan aktiviti bimbingan (Kenali Diri)" },
-      { day: "RABU", timeStart: "08.40", timeEnd: "09.40", title: "1 BESTARI (TENTANG SAYA)", type: "bimbingan", classTarget: "1 BESTARI", focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan aktiviti bimbingan (Tentang Saya)" },
+      { day: "RABU", timeStart: "07.10", timeEnd: "08.10", title: "5 BESTARI (KENALI DIRI)", type: "bimbingan", classTarget: "5 BESTARI", isRelief: true, focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan aktiviti bimbingan (Kenali Diri)" },
+      { day: "RABU", timeStart: "08.40", timeEnd: "09.40", title: "1 BESTARI (TENTANG SAYA)", type: "bimbingan", classTarget: "1 BESTARI", isRelief: true, focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan aktiviti bimbingan (Tentang Saya)" },
       { day: "RABU", timeStart: "10.10", timeEnd: "11.10", title: "KI01", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
-      { day: "RABU", timeStart: "11.40", timeEnd: "12.40", title: "4 BESTARI (PSIKOEDUKASI TENTANG SAYA)", type: "bimbingan", classTarget: "4 BESTARI", focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan psikoedukasi bimbingan (Tentang Saya)" },
+      { day: "RABU", timeStart: "11.40", timeEnd: "12.40", title: "4 BESTARI (PSIKOEDUKASI TENTANG SAYA)", type: "bimbingan", classTarget: "4 BESTARI", isRelief: true, focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan psikoedukasi bimbingan (Tentang Saya)" },
       { day: "KHAMIS", timeStart: "07.10", timeEnd: "08.10", title: "KI02", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
-      { day: "KHAMIS", timeStart: "08.40", timeEnd: "09.40", title: "5 BESTARI (RUMAH SAYA)", type: "bimbingan", classTarget: "5 BESTARI", focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan aktiviti bimbingan (Rumah Saya)" },
+      { day: "KHAMIS", timeStart: "08.40", timeEnd: "09.40", title: "5 BESTARI (RUMAH SAYA)", type: "bimbingan", classTarget: "5 BESTARI", isRelief: true, focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan aktiviti bimbingan (Rumah Saya)" },
       { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "KI03", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KI04", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "JUMAAT", timeStart: "07.10", timeEnd: "08.10", title: "KI05", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
@@ -39,12 +39,16 @@ const PRACTICUM_WEEKS = [
       KHAMIS: "27/08/2026",
       JUMAAT: "28/08/2026"
     },
+    holidays: {
+      ISNIN: "Cuti Peristiwa Maulidur Rasul",
+      SELASA: "Cuti Umum Maulidur Rasul"
+    },
     sessions: [
       { day: "ISNIN", timeStart: "07.00", timeEnd: "12.40", title: "CUTI PERISTIWA DAN CUTI UMUM MAULIDUR RASUL", type: "cuti", classTarget: "-" },
       { day: "SELASA", timeStart: "07.00", timeEnd: "12.40", title: "CUTI PERISTIWA DAN CUTI UMUM MAULIDUR RASUL", type: "cuti", classTarget: "-" },
       { day: "RABU", timeStart: "08.10", timeEnd: "09.10", title: "KELOMPOK 1 (URUS EMOSI)", type: "kelompok", classTarget: "Kelompok 1", sessionTag: "Sesi 2", clientStatus: "K" },
-      { day: "RABU", timeStart: "10.40", timeEnd: "11.40", title: "4 ARIF (TENTANG SAYA)", type: "bimbingan", classTarget: "4 ARIF", focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan aktiviti bimbingan (Tentang Saya)" },
-      { day: "KHAMIS", timeStart: "08.40", timeEnd: "09.40", title: "5 BESTARI (KERJAYA)", type: "bimbingan", classTarget: "5 BESTARI", focus: "kerjaya", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan aktiviti bimbingan kerjaya murid" },
+      { day: "RABU", timeStart: "10.40", timeEnd: "11.40", title: "4 ARIF (TENTANG SAYA)", type: "bimbingan", classTarget: "4 ARIF", isRelief: true, focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan aktiviti bimbingan (Tentang Saya)" },
+      { day: "KHAMIS", timeStart: "08.40", timeEnd: "09.40", title: "5 BESTARI (KERJAYA)", type: "bimbingan", classTarget: "5 BESTARI", isRelief: true, focus: "kerjaya", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan aktiviti bimbingan kerjaya murid" },
       { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KELOMPOK 2 (KENALI DIRI)", type: "kelompok", classTarget: "Kelompok 2", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "JUMAAT", timeStart: "07.40", timeEnd: "08.40", title: "KI107", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "JUMAAT", timeStart: "09.10", timeEnd: "12.40", title: "PROGRAM KEMERDEKAAN DAN PERSARAAN", type: "program", classTarget: "Sekolah" }
@@ -65,7 +69,7 @@ const PRACTICUM_WEEKS = [
       { day: "ISNIN", timeStart: "07.10", timeEnd: "08.10", title: "KI08", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "ISNIN", timeStart: "08.10", timeEnd: "08.40", title: "SARINGAN MINDA SIHAT", type: "saringan", classTarget: "UBK" },
       { day: "SELASA", timeStart: "07.10", timeEnd: "08.10", title: "KI08", type: "individu", classTarget: "Individu", sessionTag: "Sesi 2", clientStatus: "K" },
-      { day: "SELASA", timeStart: "08.40", timeEnd: "09.40", title: "1 ARIF (KENAL EMOSI, URUS EMOSI)", type: "bimbingan", classTarget: "1 ARIF", focus: "psikososial", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan aktiviti bimbingan kesejahteraan mental & emosi" },
+      { day: "SELASA", timeStart: "08.40", timeEnd: "09.40", title: "1 ARIF (KENAL EMOSI, URUS EMOSI)", type: "bimbingan", classTarget: "1 ARIF", isRelief: true, focus: "psikososial", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan aktiviti bimbingan emosi" },
       { day: "RABU", timeStart: "08.40", timeEnd: "09.10", title: "KI08", type: "individu", classTarget: "Individu", sessionTag: "Sesi 3", clientStatus: "K" },
       { day: "RABU", timeStart: "09.40", timeEnd: "12.40", title: "PROGRAM KEPIMPINAN CILIK", type: "program", classTarget: "Pemimpin Muda" },
       { day: "KHAMIS", timeStart: "07.00", timeEnd: "12.40", title: "PROGRAM BOMBA DAN PENYELIAAN ENCI SAID BIN JULPIN", type: "program", classTarget: "Sekolah" },
@@ -84,14 +88,18 @@ const PRACTICUM_WEEKS = [
       KHAMIS: "17/09/2026",
       JUMAAT: "18/09/2026"
     },
+    holidays: {
+      RABU: "Cuti Umum Hari Malaysia",
+      JUMAAT: "Cuti Peristiwa Persekolahan"
+    },
     sessions: [
       { day: "ISNIN", timeStart: "09.10", timeEnd: "10.10", title: "KI09", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "ISNIN", timeStart: "10.40", timeEnd: "12.10", title: "KELOMPOK 2 (KONSEP KENDIRI)", type: "kelompok", classTarget: "Kelompok 2", sessionTag: "Sesi 2", clientStatus: "K" },
       { day: "SELASA", timeStart: "07.00", timeEnd: "11.40", title: "PROGRAM CERAMAH BUKU TEKS, MAKANAN SIHAT DAN KESIHATAN MENTAL", type: "program", classTarget: "Sekolah" },
-      { day: "SELASA", timeStart: "11.40", timeEnd: "12.40", title: "AKTIVITI BIMBINGAN PSIKOEDUKASI DISIPLIN", type: "bimbingan", classTarget: "Disiplin", focus: "disiplin", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan psikoedukasi peningkatan disiplin murid" },
+      { day: "SELASA", timeStart: "11.40", timeEnd: "12.40", title: "AKTIVITI BIMBINGAN PSIKOEDUKASI DISIPLIN", type: "bimbingan", classTarget: "Disiplin", isRelief: true, focus: "disiplin", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan psikoedukasi disiplin" },
       { day: "RABU", timeStart: "07.00", timeEnd: "12.40", title: "CUTI UMUM HARI MALAYSIA", type: "cuti", classTarget: "-" },
       { day: "KHAMIS", timeStart: "07.00", timeEnd: "08.40", title: "SARINGAN MINDA SIHAT UNTUK YANG TIDAK HADIR 08/09", type: "saringan", classTarget: "UBK" },
-      { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "6 ARIF PSIKOEDUKASI PERKHIDMATAN UBK", type: "bimbingan", classTarget: "6 ARIF", focus: "psikososial", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain - diisi dengan psikoedukasi perkhidmatan bimbingan UBK" },
+      { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "6 ARIF PSIKOEDUKASI PERKHIDMATAN UBK", type: "bimbingan", classTarget: "6 ARIF", isRelief: true, focus: "psikososial", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan psikoedukasi UBK" },
       { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "BIMBINGAN KELOMPOK PSIKOSOSIAL", type: "kelompok", classTarget: "Kelompok Psikososial", sessionTag: "Sesi 1", clientStatus: "B" }
     ]
   },
@@ -131,7 +139,7 @@ const PRACTICUM_WEEKS = [
       { day: "SELASA", timeStart: "11.10", timeEnd: "12.10", title: "KI13 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 BESTARI (Waktu PSV)", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "RABU", timeStart: "10.40", timeEnd: "11.40", title: "KELOMPOK 4 (PENGURUSAN EMOSI)", type: "kelompok", classTarget: "6 ARIF (Waktu Moral)", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "KHAMIS", timeStart: "08.10", timeEnd: "09.10", title: "KI14 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 ARIF (Waktu RBT)", sessionTag: "Sesi 1", clientStatus: "B" },
-      { day: "JUMAAT", timeStart: "07.40", timeEnd: "08.40", title: "BIMBINGAN KELAS TAHAP 2", type: "bimbingan", classTarget: "6 ARIF (Waktu PSV)", focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain (Waktu PSV) - diisi dengan aktiviti bimbingan sahsiah" }
+      { day: "JUMAAT", timeStart: "07.40", timeEnd: "08.40", title: "BIMBINGAN KELAS TAHAP 2", type: "bimbingan", classTarget: "6 ARIF (Waktu PSV)", isRelief: true, focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru (Waktu PSV), diisi dengan aktiviti bimbingan sahsiah" }
     ]
   },
   {
@@ -167,7 +175,7 @@ const PRACTICUM_WEEKS = [
     sessions: [
       { day: "ISNIN", timeStart: "08.10", timeEnd: "09.10", title: "KI18 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 BESTARI (Waktu PI)", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "SELASA", timeStart: "11.40", timeEnd: "12.40", title: "KI19 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 ARIF (Waktu BKD)", sessionTag: "Sesi 1", clientStatus: "B" },
-      { day: "RABU", timeStart: "08.10", timeEnd: "09.10", title: "BIMBINGAN KELAS TAHAP 2", type: "bimbingan", classTarget: "5 BESTARI (Waktu SEJ)", focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas ganti guru lain (Waktu SEJ) - diisi dengan aktiviti bimbingan sahsiah" },
+      { day: "RABU", timeStart: "08.10", timeEnd: "09.10", title: "BIMBINGAN KELAS TAHAP 2", type: "bimbingan", classTarget: "5 BESTARI (Waktu SEJ)", isRelief: true, focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru (Waktu SEJ), diisi dengan aktiviti bimbingan sahsiah" },
       { day: "KHAMIS", timeStart: "07.30", timeEnd: "12.40", title: "SAMBUTAN HARI KANAK-KANAK", type: "program", classTarget: "Sekolah" },
       { day: "JUMAAT", timeStart: "08.40", timeEnd: "09.40", title: "KI20 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 BESTARI (Waktu RBT)", sessionTag: "Sesi 1", clientStatus: "B" }
     ]
@@ -201,6 +209,9 @@ const PRACTICUM_WEEKS = [
       RABU: "28/10/2026",
       KHAMIS: "29/10/2026",
       JUMAAT: "30/10/2026"
+    },
+    holidays: {
+      SELASA: "Cuti Peristiwa / Pelepasan Am"
     },
     sessions: [
       { day: "ISNIN", timeStart: "09.10", timeEnd: "09.40", title: "SESI RUMUSAN & REFLEKSI KLIEN TAHAP 2", type: "individu", classTarget: "Klien UBK", sessionTag: "Sesi 1", clientStatus: "B" },
