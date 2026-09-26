@@ -4,26 +4,10 @@
 // Disediakan Khas untuk: Cikgu Nurul Syahfirah binti Arjaman
 // ====================================================================
 //
-// PANDUAN LANGKAH DEMI LANGKAH UNTUK CIKGU (Hanya Ambil Masa 3 Minit):
-// --------------------------------------------------------------------
-// 1. Buka pelayar web dan layari: https://sheets.google.com
-// 2. Klik '+' untuk cipta lembaran baharu (Beri nama: "Pangkalan Data UBK SK Tampasuk 1").
-// 3. Pada menu atas, klik 'Extensions' (atau 'Pelanjutan') > pilih 'Apps Script'.
-// 4. Padam apa-apa kod sedia ada di dalamnya, salin SELURUH kod di bawah ini dan tampal ke situ.
-// 5. Klik ikon Simpan 💾 (atau Ctrl + S).
-// 6. Klik butang biru besar 'Deploy' (Guna) di sudut kanan atas > pilih 'New deployment' (Guna Baharu).
-// 7. Klik ikon gear ⚙️ di sebelah 'Select type' > pilih 'Web app' (Aplikasi Web).
-// 8. Isikan tetapan berikut dengan teliti:
-//    - Description: UBK Backend Realtime
-//    - Execute as: 'Me' (Akaun Google saya)
-//    - Who has access: 'Anyone' (Sesiapa sahaja)  <-- PENTING agar telefon & laptop boleh membaca data!
-// 9. Klik 'Deploy'. Google akan meminta kebenaran (Review Permissions) > pilih emel anda >
-//    klik 'Advanced' (Lanjutan) > klik 'Go to Untitled project (unsafe)' > klik 'Allow' (Benarkan).
-// 10. Salin 'Web App URL' yang dipaparkan (bermula dengan: https://script.google.com/macros/s/...../exec).
-// 11. Masukkan URL tersebut ke dalam Sistem Jadual UBK di butang '🟢 Live Sync' > Tetapan Backend!
-//
-// Selesai! Sekarang semua sesi yang cikgu simpan di komputer akan terus disegerakkan ke telefon
-// dan mana-mana peranti secara automatik!
+// FUNGSI SKRIP INI:
+// 1. Menyimpan data secara 'Real-Time' untuk disegerakkan ke telefon & komputer.
+// 2. Mengisi rekod sesi jadual terus ke dalam Google Sheets dalam bentuk
+//    jadual yang kemas (Minggu, Tarikh, Hari, Masa, Tajuk Sesi, Klien, dll).
 // ====================================================================
 
 function doGet(e) {
@@ -32,14 +16,14 @@ function doGet(e) {
     var rawData = props.getProperty("SCHEDULE_DATA");
     var timestampStr = props.getProperty("UPDATED_AT") || "0";
     
-    // Sekiranya PropertiesService kosong, cuba baca dari Sheet
+    // Sekiranya PropertiesService kosong, baca dari Sheet
     if (!rawData) {
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       if (ss) {
-        var sheet = ss.getActiveSheet();
-        var sheetVal = sheet.getRange("B2").getValue();
-        if (sheetVal && typeof sheetVal === "string" && sheetVal.length > 5) {
-          rawData = sheetVal;
+        var rawSheet = ss.getSheetByName("Data_JSON");
+        if (rawSheet) {
+          var val = rawSheet.getRange("A1").getValue();
+          if (val && typeof val === "string") rawData = val;
         }
       }
     }
@@ -83,37 +67,26 @@ function doPost(e) {
     var parsed = JSON.parse(requestBody);
     var practicumData = parsed.practicumData || parsed;
     var timestamp = parsed.updatedAt || Date.now();
-    
     var jsonString = JSON.stringify(practicumData);
     
-    // 1. Simpan ke Script Properties (Sangat pantas, sub-saat)
+    // 1. Simpan ke Script Properties untuk capaian real-time pantas
     var props = PropertiesService.getScriptProperties();
     props.setProperty("SCHEDULE_DATA", jsonString);
     props.setProperty("UPDATED_AT", timestamp.toString());
     
-    // 2. Simpan juga salinan ke Google Sheets sebagai rekod sandaran selamat
+    // 2. Susun dan tulis terus ke dalam Google Sheets dalam bentuk jadual cantik
     try {
       var ss = SpreadsheetApp.getActiveSpreadsheet();
-      if (ss) {
-        var sheet = ss.getActiveSheet();
-        sheet.setName("Log Jadual UBK");
-        
-        sheet.getRange("A1").setValue("Kemaskini Terakhir:");
-        sheet.getRange("B1").setValue(new Date(timestamp).toLocaleString("ms-MY"));
-        
-        sheet.getRange("A2").setValue("Data JSON Penuh:");
-        sheet.getRange("B2").setValue(jsonString);
-        
-        sheet.getRange("A3").setValue("Dikemaskini Oleh:");
-        sheet.getRange("B3").setValue(parsed.updatedBy || "Cikgu Nurul Syahfirah");
+      if (ss && Array.isArray(practicumData)) {
+        tulisJadualCantikKeSheet(ss, practicumData, timestamp);
       }
     } catch (errSheet) {
-      // Abaikan jika sheet sedang dikunci, Script Properties sudah memadai
+      Logger.log("Ralat menulis ke sheet: " + errSheet);
     }
     
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      message: "Data jadual UBK berjaya disimpan dan disegerakkan!",
+      message: "Data jadual UBK berjaya disimpan dan disegerakkan ke Google Sheets!",
       updatedAt: timestamp
     })).setMimeType(ContentService.MimeType.JSON);
     
@@ -122,5 +95,114 @@ function doPost(e) {
       status: "error",
       message: err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ====================================================================
+// FUNGSI UNTUK MENULIS SEMUA SESI KE DALAM GOOGLE SHEET (KEMAS & TERSUSUN)
+// ====================================================================
+function tulisJadualCantikKeSheet(ss, practicumData, timestamp) {
+  var sheetName = "Senarai Sesi UBK 2026";
+  var sheet = ss.getSheetByName(sheetName);
+  
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+  sheet.clear();
+  
+  // Header Lajur Rasmi
+  var headers = [
+    "Minggu", 
+    "Tarikh", 
+    "Hari", 
+    "Masa Mula", 
+    "Masa Tamat", 
+    "Tajuk Sesi / Aktiviti", 
+    "Jenis Sesi", 
+    "Kelas / Sasaran", 
+    "Bil. Klien", 
+    "Nama Klien / Murid Terlibat", 
+    "Status Sesi", 
+    "Fokus IPGM", 
+    "Cara Hadir",
+    "Nota Kaunselor"
+  ];
+  
+  var rows = [headers];
+  
+  if (Array.isArray(practicumData)) {
+    practicumData.forEach(function(week) {
+      var weekTitle = week.title || ("Minggu " + week.weekNum);
+      if (week.sessions && Array.isArray(week.sessions)) {
+        week.sessions.forEach(function(s) {
+          var dateStr = (week.dates && week.dates[s.day]) ? week.dates[s.day] : "";
+          
+          var studentList = "";
+          if (s.students && Array.isArray(s.students) && s.students.length > 0) {
+            studentList = s.students.map(function(st) { return st.name; }).join(", ");
+          }
+          
+          rows.push([
+            weekTitle,
+            dateStr,
+            s.day || "",
+            s.timeStart || "",
+            s.timeEnd || "",
+            s.title || "",
+            (s.type || "").toUpperCase(),
+            s.classTarget || "",
+            s.headcount || 1,
+            studentList,
+            (s.status || "belum").toUpperCase(),
+            s.focus || "sahsiah",
+            s.arrivalWay || "sukarela",
+            s.notes || ""
+          ]);
+        });
+      }
+    });
+  }
+  
+  if (rows.length > 1) {
+    sheet.getRange(1, 1, rows.length, headers.length).setValues(rows);
+    
+    // Format Header Cantik (Biru KPM & Teks Putih)
+    var headerRange = sheet.getRange(1, 1, 1, headers.length);
+    headerRange.setBackground("#1e3a8a");
+    headerRange.setFontColor("#ffffff");
+    headerRange.setFontWeight("bold");
+    headerRange.setHorizontalAlignment("center");
+    
+    sheet.setFrozenRows(1);
+    
+    // Auto-fit lajur
+    for (var c = 1; c <= headers.length; c++) {
+      sheet.autoResizeColumn(c);
+    }
+  }
+  
+  // Simpan juga salinan JSON mentah dalam sheet tersembunyi untuk sandaran
+  var jsonSheet = ss.getSheetByName("Data_JSON");
+  if (!jsonSheet) jsonSheet = ss.insertSheet("Data_JSON");
+  jsonSheet.clear();
+  jsonSheet.getRange("A1").setValue(JSON.stringify(practicumData));
+  jsonSheet.hideSheet();
+}
+
+// ====================================================================
+// BUTANG MANUAL: JALANKAN INI SEKIRANYA SHEET CIKGU MASIH KOSONG
+// (Klik butang 'Run' / 'Jalankan' untuk fungsi ini di Apps Script)
+// ====================================================================
+function isiDataSekarang() {
+  var props = PropertiesService.getScriptProperties();
+  var rawData = props.getProperty("SCHEDULE_DATA");
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  if (rawData && ss) {
+    var data = JSON.parse(rawData);
+    tulisJadualCantikKeSheet(ss, data, Date.now());
+    Logger.log("✅ Berjaya mengisi Google Sheet daripada memori!");
+  } else {
+    Logger.log("Sila buka laman web dan klik butang 'Simpan & Segerak' untuk menghantar jadual.");
   }
 }

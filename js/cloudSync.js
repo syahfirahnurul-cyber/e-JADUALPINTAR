@@ -12,8 +12,8 @@ const CloudSync = {
   // Konfigurasi Utama
   config: {
     channelId: "sk_tampasuk1_ubk_2026",
-    // Backend lalai sekiranya pengguna telah sediakan Google Apps Script atau Firebase
-    defaultBackendUrl: "",
+    // Backend rasmi Google Apps Script (Google Sheets Cikgu Nurul Syahfirah)
+    defaultBackendUrl: "https://script.google.com/macros/s/AKfycbz4hFjdKfO9OfxaKL-H-xuloWYeyrkeb3ZT24IYuruUMmJ1I2Vu2c9uPEPKOUjFpC8RdA/exec",
     broadcastChannelName: "ubk_schedule_realtime_bus",
     pollIntervalMs: 8000, // Imbas kemaskini cloud setiap 8 saat jika tab aktif
     adminPin: "2026"      // PIN keselamatan kaunselor
