@@ -1922,6 +1922,49 @@ const App = {
     const dropdown = document.getElementById("toolsDropdownMenu");
     if (dropdown) dropdown.classList.remove("active");
 
+    const endpointInput = document.getElementById("backendEndpointInput");
+    const storedEndpoint = localStorage.getItem("ubk_cloud_endpoint") || "";
+    if (endpointInput) endpointInput.value = storedEndpoint;
+
+    // Kemas kini status badge backend
+    const badgeEl = document.getElementById("backendTypeBadge");
+    const statusIcon = document.getElementById("modalCloudStatusIcon");
+    const statusTitle = document.getElementById("modalCloudStatusText");
+    const statusSub = document.getElementById("modalCloudLastSync");
+
+    if (badgeEl && typeof CloudSync !== "undefined") {
+      if (CloudSync.state.backendType === "gas") {
+        badgeEl.textContent = "Google Sheets (Apps Script)";
+        badgeEl.style.background = "#dcfce7";
+        badgeEl.style.color = "#15803d";
+      } else if (CloudSync.state.backendType === "firebase") {
+        badgeEl.textContent = "Google Firebase Realtime";
+        badgeEl.style.background = "#fef3c7";
+        badgeEl.style.color = "#b45309";
+      } else if (CloudSync.state.backendType === "cloudflare") {
+        badgeEl.textContent = "Cloudflare Pages Function";
+        badgeEl.style.background = "#ffedd5";
+        badgeEl.style.color = "#c2410c";
+      } else {
+        badgeEl.textContent = "Mod Tempatan (Belum Disambung)";
+        badgeEl.style.background = "#f1f5f9";
+        badgeEl.style.color = "#64748b";
+      }
+    }
+
+    if (statusIcon && statusTitle && statusSub) {
+      if (storedEndpoint && typeof CloudSync !== "undefined" && CloudSync.state.isOnline) {
+        statusIcon.textContent = "🟢";
+        statusTitle.textContent = "Cloud Real-Time Aktif & Bersambung";
+        const d = CloudSync.state.lastSyncTime || new Date();
+        statusSub.textContent = `Terakhir disegerakkan: ${d.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+      } else {
+        statusIcon.textContent = "⚪";
+        statusTitle.textContent = "Mod Tempatan (Belum Disambung ke Cloud)";
+        statusSub.textContent = "Data kini hanya disimpan pada pelayar peranti ini. Masukkan URL pangkalan data untuk mengaktifkan real-time.";
+      }
+    }
+
     const publicUrl = (typeof CloudSync !== "undefined") ? CloudSync.getShareableUrl("viewer") : window.location.href;
     const adminUrl = (typeof CloudSync !== "undefined") ? CloudSync.getShareableUrl("admin") : window.location.href;
 
@@ -1935,14 +1978,8 @@ const App = {
     if (qrContainer && typeof CloudSync !== "undefined") {
       const qrUrl = CloudSync.getQrCodeUrl(publicUrl, 200);
       qrContainer.innerHTML = `
-        <img src="${qrUrl}" alt="QR Code Pautan Awam" style="width: 190px; height: 190px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); background: white; padding: 6px;" onerror="this.parentElement.innerHTML='<p style=\\'color:#64748b;font-size:0.8rem;\\'>Salin pautan di atas dan kongsikan melalui WhatsApp.</p>'">
+        <img src="${qrUrl}" alt="QR Code Pautan Awam" style="width: 190px; height: 190px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); background: white; padding: 6px;" onerror="this.parentElement.innerHTML='<p style=\\'color:#64748b;font-size:0.8rem;\\'>Salin pautan di atas dan kongsikan melalui WhatsApp.</p>'">
       `;
-    }
-
-    const lastSyncEl = document.getElementById("modalCloudLastSync");
-    if (lastSyncEl && typeof CloudSync !== "undefined") {
-      const d = CloudSync.state.lastSyncTime || new Date();
-      lastSyncEl.textContent = `Terakhir disegerakkan: ${d.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     }
 
     const modal = document.getElementById("cloudSyncModal");
@@ -1952,6 +1989,62 @@ const App = {
   closeCloudSyncModal: function() {
     const modal = document.getElementById("cloudSyncModal");
     if (modal) modal.classList.remove("active");
+  },
+
+  testBackendConnection: async function() {
+    const input = document.getElementById("backendEndpointInput");
+    const alertBox = document.getElementById("backendTestAlert");
+    if (!input || !alertBox) return;
+
+    const url = input.value.trim();
+    if (!url) {
+      alertBox.style.display = "block";
+      alertBox.style.background = "#fee2e2";
+      alertBox.style.color = "#991b1b";
+      alertBox.style.border = "1px solid #fecaca";
+      alertBox.textContent = "⚠️ Sila masukkan URL pangkalan data terlebih dahulu.";
+      return;
+    }
+
+    alertBox.style.display = "block";
+    alertBox.style.background = "#e0f2fe";
+    alertBox.style.color = "#075985";
+    alertBox.style.border = "1px solid #bae6fd";
+    alertBox.textContent = "⏳ Sedang menguji sambungan ke pelayan awan...";
+
+    const res = await CloudSync.testConnection(url);
+    if (res.success) {
+      alertBox.style.background = "#dcfce7";
+      alertBox.style.color = "#166534";
+      alertBox.style.border = "1px solid #86efac";
+      alertBox.textContent = res.message;
+    } else {
+      alertBox.style.background = "#fee2e2";
+      alertBox.style.color = "#991b1b";
+      alertBox.style.border = "1px solid #fecaca";
+      alertBox.textContent = res.message;
+    }
+  },
+
+  saveBackendConnection: async function() {
+    const input = document.getElementById("backendEndpointInput");
+    const alertBox = document.getElementById("backendTestAlert");
+    const url = input ? input.value.trim() : "";
+
+    if (typeof CloudSync !== "undefined") {
+      CloudSync.saveBackendConfig(url);
+      
+      if (url) {
+        this.showToast("💾 Sedang menyegerakkan data ke pangkalan data cloud...", null, 3000);
+        await CloudSync.uploadToCloud(this.state.practicumData);
+        this.showToast("🟢 Berjaya! Pangkalan data cloud telah aktif dan terselaras.", null, 4000);
+      } else {
+        this.showToast("⚪ Tetapan cloud dikosongkan. Sistem beroperasi dalam mod tempatan.", null, 3000);
+      }
+
+      // Segarkan paparan modal
+      this.openCloudSyncModal();
+    }
   },
 
   copyPublicShareLink: function() {
@@ -2010,88 +2103,6 @@ const App = {
         }
       });
     }
-  },
-
-  openDeviceSyncModal: function() {
-    const dropdown = document.getElementById("toolsDropdownMenu");
-    if (dropdown) dropdown.classList.remove("active");
-
-    const jsonStr = JSON.stringify(this.state.practicumData);
-    const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(jsonStr))));
-    
-    const baseUrl = window.location.origin + window.location.pathname;
-    const syncUrl = `${baseUrl}#sync=${encoded}`;
-
-    const inputEl = document.getElementById("syncLinkInput");
-    if (inputEl) inputEl.value = syncUrl;
-
-    const qrContainer = document.getElementById("syncQrCodeContainer");
-    if (qrContainer) {
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(syncUrl)}`;
-      qrContainer.innerHTML = `
-        <img src="${qrApiUrl}" alt="Kod QR Segerak" style="width: 200px; height: 200px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); background: white; padding: 6px;" onerror="this.parentElement.innerHTML='<p style=\\'color:#64748b;font-size:0.8rem;\\'>Salin pautan di bawah dan hantar ke WhatsApp untuk segerakkan jadual.</p>'">
-        <div style="font-size: 0.8rem; font-weight: 700; color: #1e3a8a; margin-top: 8px;">
-          📷 Halakan Kamera Telefon ke Kod QR Ini
-        </div>
-      `;
-    }
-
-    const shareBtn = document.getElementById("btnWebShare");
-    if (shareBtn) {
-      shareBtn.style.display = navigator.share ? "inline-flex" : "none";
-    }
-
-    document.getElementById("deviceSyncModal").classList.add("active");
-  },
-
-  closeDeviceSyncModal: function() {
-    document.getElementById("deviceSyncModal").classList.remove("active");
-  },
-
-  copySyncLink: function() {
-    const inputEl = document.getElementById("syncLinkInput");
-    if (!inputEl) return;
-    inputEl.select();
-    inputEl.setSelectionRange(0, 99999);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(inputEl.value).then(() => {
-        this.showToast("📋 Pautan segerak disalin! Anda boleh hantar ke WhatsApp anda.", null, 4500);
-      }).catch(() => {
-        document.execCommand("copy");
-        this.showToast("📋 Pautan segerak disalin!", null, 4000);
-      });
-    } else {
-      document.execCommand("copy");
-      this.showToast("📋 Pautan segerak disalin!", null, 4000);
-    }
-  },
-
-  shareSyncLink: function() {
-    const inputEl = document.getElementById("syncLinkInput");
-    if (!inputEl) return;
-    if (navigator.share) {
-      navigator.share({
-        title: "Jadual UBK SK Tampasuk 1 (Segerak)",
-        text: "Pautan segerak jadual waktu UBK Cikgu Nurul Syahfirah:",
-        url: inputEl.value
-      }).catch(() => {});
-    }
-  },
-
-  exportCodeForGitHub: function() {
-    const dropdown = document.getElementById("toolsDropdownMenu");
-    if (dropdown) dropdown.classList.remove("active");
-
-    const jsContent = `// Pangkalan Data Jadual Praktikum UBK SK Tampasuk 1 - Dikemaskini pada ${new Date().toLocaleDateString('ms-MY')}\n// Salin fail ini ke folder data/jadualPraktikum.js di GitHub untuk dikemaskini secara live di Cloudflare Pages.\n\nconst PRACTICUM_WEEKS = ${JSON.stringify(this.state.practicumData, null, 2)};\n`;
-    const blob = new Blob([jsContent], { type: "text/javascript;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "jadualPraktikum.js");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    alert("✅ Fail 'jadualPraktikum.js' berjaya dimuat turun!\n\nUntuk mengemaskini laman web live anda:\n1. Buka repositori GitHub anda di pelayar.\n2. Masuk ke folder 'data/' dan muat naik / timpa fail 'jadualPraktikum.js' ini.\n3. Cloudflare Pages akan terus mengemaskini laman web live anda dalam masa 10-15 saat untuk semua peranti!");
   },
 
   // =========================================================

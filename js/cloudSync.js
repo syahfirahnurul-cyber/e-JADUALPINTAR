@@ -1,47 +1,54 @@
-// =========================================================
-// MODUL CLOUD REAL-TIME SYNC & PERKONGSIAN PAUTAN WEB RASMI
+// ====================================================================
+// MODUL CLOUD REAL-TIME SYNC & UNIVERSAL BACKEND ADAPTER
 // Menyokong penyegerakan data jadual secara masa nyata (Real-Time)
 // ke semua peranti (Telefon, Tablet, Komputer) yang membuka link web.
-// =========================================================
+// Menyokong:
+// 1. Google Sheets / Google Apps Script Web App (Disyorkan KPM)
+// 2. Google Firebase Realtime Database (Sub-saat / SSE Push)
+// 3. Cloudflare Pages Functions (/api/sync)
+// ====================================================================
 
 const CloudSync = {
   // Konfigurasi Utama
   config: {
     channelId: "sk_tampasuk1_ubk_2026",
-    // Endpoint sandaran awan masa nyata (REST & SSE realtime compatible)
-    apiBase: "https://api.jsonbin.io/v3/b",
-    // Saluran BroadcastChannel untuk segerak rentas-tab serta-merta (0ms latency)
+    // Backend lalai sekiranya pengguna telah sediakan Google Apps Script atau Firebase
+    defaultBackendUrl: "",
     broadcastChannelName: "ubk_schedule_realtime_bus",
     pollIntervalMs: 8000, // Imbas kemaskini cloud setiap 8 saat jika tab aktif
-    adminPin: "2026"      // PIN lalai kaunselor untuk buka mod pentadbir pada peranti lain
+    adminPin: "2026"      // PIN keselamatan kaunselor
   },
 
   state: {
     isOnline: navigator.onLine,
-    syncStatus: "connecting", // 'connected', 'syncing', 'offline', 'error'
+    syncStatus: "connecting", // 'connected', 'syncing', 'offline', 'error', 'unconfigured'
+    backendType: "none",      // 'gas' (Google Sheets), 'firebase', 'cloudflare', 'custom'
+    activeEndpoint: "",
     lastSyncTime: null,
     lastRemoteTimestamp: 0,
     userRole: "admin",        // 'admin' (Kaunselor) atau 'viewer' (Pelawat/Guru/Murid)
     broadcastChannel: null,
+    eventSource: null,        // Untuk Firebase SSE Real-Time
     pollTimer: null,
     isSyncing: false
   },
 
   init: function() {
-    this.detectRoleFromUrl();
+    this.detectRoleAndBackendFromUrl();
     this.initBroadcastChannel();
     this.initNetworkListeners();
     this.initVisibilityListeners();
+    this.setupActiveBackend();
     this.startRealtimePolling();
 
-    // Lakukan imbasan segerak pertama sebaik sahaja dimuatkan
+    // Lakukan imbasan segerak pertama sebaik sahaja pelayar bersedia
     setTimeout(() => {
       this.syncWithCloud();
-    }, 800);
+    }, 700);
   },
 
-  // 1. Kenal pasti peranan pengguna (Kaunselor vs Pelawat) dari URL
-  detectRoleFromUrl: function() {
+  // 1. Kenal pasti peranan & URL backend daripada URL Parameter
+  detectRoleAndBackendFromUrl: function() {
     const urlParams = new URLSearchParams(window.location.search);
     const roleParam = urlParams.get("role") || urlParams.get("view");
     const storedRole = localStorage.getItem("ubk_user_role");
@@ -55,20 +62,98 @@ const CloudSync = {
     } else if (storedRole) {
       this.state.userRole = storedRole;
     } else {
-      // Lalai: Jika di peranti peribadi pertama, mod admin
       this.state.userRole = "admin";
+    }
+
+    // Tangkap backend URL jika dihantar melalui pautan kongsi (contoh di telefon baru)
+    const backendParam = urlParams.get("backend");
+    if (backendParam) {
+      try {
+        const decoded = decodeURIComponent(backendParam);
+        if (decoded.startsWith("http")) {
+          localStorage.setItem("ubk_cloud_endpoint", decoded);
+        }
+      } catch (e) {}
     }
 
     this.applyRoleUi();
   },
 
-  // 2. Sesuaikan UI mengikut peranan (Viewer Mode: lindungi data daripada terpadam)
+  // 2. Tetapkan Backend Aktif
+  setupActiveBackend: function() {
+    let endpoint = localStorage.getItem("ubk_cloud_endpoint") || this.config.defaultBackendUrl || "";
+    endpoint = endpoint.trim();
+    this.state.activeEndpoint = endpoint;
+
+    if (!endpoint) {
+      // Sekiranya dihoskan di Cloudflare Pages, semak sama ada /api/sync wujud secara automatik
+      if (window.location.hostname.includes("pages.dev") || window.location.hostname.includes("cloudflare")) {
+        this.state.activeEndpoint = "/api/sync";
+        this.state.backendType = "cloudflare";
+        return;
+      }
+      this.state.backendType = "none";
+      this.updateStatusPill("unconfigured", "Cloud Belum Disambung");
+      return;
+    }
+
+    if (endpoint.includes("script.google.com")) {
+      this.state.backendType = "gas"; // Google Apps Script
+    } else if (endpoint.includes("firebaseio.com") || endpoint.includes("firebasedatabase.app")) {
+      this.state.backendType = "firebase";
+      this.initFirebaseRealtimeStream(endpoint);
+    } else if (endpoint.includes("/api/sync")) {
+      this.state.backendType = "cloudflare";
+    } else {
+      this.state.backendType = "custom";
+    }
+  },
+
+  // Sambungan Real-Time Sub-saat menggunakan Server-Sent Events (SSE) Firebase
+  initFirebaseRealtimeStream: function(endpoint) {
+    if (typeof EventSource === "undefined") return;
+    if (this.state.eventSource) {
+      this.state.eventSource.close();
+      this.state.eventSource = null;
+    }
+
+    try {
+      let cleanUrl = endpoint.replace(/\/$/, "");
+      if (!cleanUrl.endsWith(".json")) {
+        cleanUrl = `${cleanUrl}/${this.config.channelId}.json`;
+      }
+
+      this.state.eventSource = new EventSource(cleanUrl);
+      this.state.eventSource.addEventListener("put", (e) => {
+        try {
+          const res = JSON.parse(e.data);
+          if (res && res.data) {
+            const remoteData = res.data.practicumData || res.data;
+            const remoteTimestamp = res.data.updatedAt || Date.now();
+            const localUpdated = parseInt(localStorage.getItem("ubk_last_local_update") || "0", 10);
+            
+            if (remoteTimestamp > localUpdated && Array.isArray(remoteData)) {
+              this.handleIncomingData(remoteData, "Firebase Real-Time");
+              localStorage.setItem("ubk_last_local_update", remoteTimestamp.toString());
+            }
+          }
+        } catch (err) {}
+      });
+
+      this.state.eventSource.onerror = () => {
+        // Fallback ke polling berkala jika SSE gagal
+      };
+    } catch (e) {
+      console.warn("Firebase SSE Stream:", e);
+    }
+  },
+
+  // 3. Sesuaikan UI mengikut peranan
   applyRoleUi: function() {
     const isViewer = this.state.userRole === "viewer";
     document.body.classList.toggle("mode-viewer", isViewer);
     document.body.classList.toggle("mode-admin", !isViewer);
 
-    // Kemas kini label banner jika wujud
     const roleBadge = document.getElementById("userRoleBadge");
     if (roleBadge) {
       if (isViewer) {
@@ -89,14 +174,13 @@ const CloudSync = {
       }
     }
 
-    // Kawal butang tindakan sekiranya mod paparan aktif
-    const addBtn = document.querySelector(".btn-primary[onclick*='openAddSessionModal']");
+    const addBtn = document.getElementById("btnOpenAddSession");
     if (addBtn) {
       addBtn.style.display = isViewer ? "none" : "";
     }
   },
 
-  // 3. Log masuk mod pentadbir (Kaunselor) menggunakan PIN
+  // 4. Log masuk mod pentadbir menggunakan PIN
   promptAdminUnlock: function() {
     const pin = prompt("Masukkan PIN Keselamatan Kaunselor untuk membuka mod suntingan:");
     if (!pin) return;
@@ -111,16 +195,7 @@ const CloudSync = {
     }
   },
 
-  // 4. Kunci semula ke mod paparan
-  lockToViewerMode: function() {
-    this.state.userRole = "viewer";
-    localStorage.setItem("ubk_user_role", "viewer");
-    this.applyRoleUi();
-    App.showToast("🔒 Mod Paparan Awam (Semakan Sahaja) diaktifkan.", null, 3000);
-    App.render();
-  },
-
-  // 5. Inisialisasi BroadcastChannel (Segerak antara tab pada komputer/peranti sama)
+  // 5. BroadcastChannel untuk segerak rentas-tab 0ms latency
   initBroadcastChannel: function() {
     try {
       if (typeof BroadcastChannel !== "undefined") {
@@ -131,11 +206,8 @@ const CloudSync = {
           }
         };
       }
-    } catch (e) {
-      console.warn("BroadcastChannel tidak disokong oleh pelayar:", e);
-    }
+    } catch (e) {}
 
-    // Sandaran 'storage' event listener
     window.addEventListener("storage", (e) => {
       if (e.key === "ubk_practicum_schedule_2026" && e.newValue) {
         try {
@@ -146,23 +218,21 @@ const CloudSync = {
     });
   },
 
-  // 6. Listener Status Rangkaian (Online / Offline)
+  // 6. Listener Status Rangkaian
   initNetworkListeners: function() {
     window.addEventListener("online", () => {
       this.state.isOnline = true;
       this.updateStatusPill("connected", "Online (Real-Time)");
-      App.showToast("🌐 Sambungan internet pulih. Menyelaras dengan Cloud...", null, 3000);
       this.syncWithCloud();
     });
 
     window.addEventListener("offline", () => {
       this.state.isOnline = false;
       this.updateStatusPill("offline", "Luar Talian");
-      App.showToast("⚠️ Tiada internet. Beroperasi dalam mod luar talian (data disimpan setempat).", null, 4000);
     });
   },
 
-  // 7. Pengesanan keaktifan tab (sync serta-merta apabila pengguna buka semula tab)
+  // 7. Pengesanan keaktifan tab
   initVisibilityListeners: function() {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
@@ -188,52 +258,76 @@ const CloudSync = {
   // 9. Fungsi Utama: Segerak dengan Cloud (Pull & Push Pintar)
   syncWithCloud: async function() {
     if (!this.state.isOnline || this.state.isSyncing) return;
+    
+    const endpoint = this.state.activeEndpoint;
+    if (!endpoint) {
+      this.updateStatusPill("unconfigured", "Cloud Belum Disambung");
+      return;
+    }
+
     this.state.isSyncing = true;
     this.updateStatusPill("syncing", "Menyemak Cloud...");
 
     try {
-      // Ambil konfigurasi cloud kustom jika ada
-      const cloudEndpoint = localStorage.getItem("ubk_cloud_endpoint") || "";
-      const cloudKey = localStorage.getItem("ubk_cloud_key") || this.config.channelId;
-
-      // Logik Segerak: Semak timestamp remote vs local
       const localUpdated = parseInt(localStorage.getItem("ubk_last_local_update") || "0", 10);
+      let fetchUrl = endpoint;
 
-      // Sekiranya ada Firebase DB URL atau REST DB
-      if (cloudEndpoint) {
-        const res = await fetch(`${cloudEndpoint.replace(/\/$/, '')}/${cloudKey}.json`, {
-          method: "GET",
-          headers: { "Accept": "application/json" }
-        });
-
-        if (res.ok) {
-          const remoteData = await res.json();
-          if (remoteData && remoteData.practicumData) {
-            const remoteTimestamp = remoteData.updatedAt || 0;
-            if (remoteTimestamp > localUpdated) {
-              // Remote lebih baru -> Kemaskini local!
-              this.handleIncomingData(remoteData.practicumData, "Cloud Live");
-              this.state.lastRemoteTimestamp = remoteTimestamp;
-              localStorage.setItem("ubk_last_local_update", remoteTimestamp.toString());
-            } else if (localUpdated > remoteTimestamp && this.state.userRole === "admin") {
-              // Local lebih baru dan peranan admin -> Muat naik ke cloud!
-              await this.uploadToCloud(App.state.practicumData);
-            }
-          }
-        }
+      if (this.state.backendType === "firebase") {
+        let clean = endpoint.replace(/\/$/, "");
+        if (!clean.endsWith(".json")) clean = `${clean}/${this.config.channelId}.json`;
+        fetchUrl = clean;
       }
 
-      this.state.lastSyncTime = new Date();
-      this.updateStatusPill("connected", "Cloud Live (Real-Time)");
+      const res = await fetch(fetchUrl, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        cache: "no-store"
+      });
+
+      if (res.ok) {
+        const remoteRes = await res.json();
+        let remoteData = null;
+        let remoteTimestamp = 0;
+
+        if (remoteRes) {
+          if (remoteRes.practicumData) {
+            remoteData = remoteRes.practicumData;
+            remoteTimestamp = remoteRes.updatedAt || 0;
+          } else if (Array.isArray(remoteRes)) {
+            remoteData = remoteRes;
+            remoteTimestamp = Date.now();
+          }
+        }
+
+        if (remoteData && Array.isArray(remoteData) && remoteData.length > 0) {
+          if (remoteTimestamp > localUpdated) {
+            // Remote lebih baru -> Kemaskini jadual pada peranti ini!
+            this.handleIncomingData(remoteData, "Cloud Live");
+            this.state.lastRemoteTimestamp = remoteTimestamp;
+            localStorage.setItem("ubk_last_local_update", remoteTimestamp.toString());
+          } else if (localUpdated > remoteTimestamp && this.state.userRole === "admin") {
+            // Peranti pentadbir mempunyai data tempatan yang lebih baharu -> Segerakkan ke cloud!
+            await this.uploadToCloud(App.state.practicumData);
+          }
+        } else if ((!remoteData || remoteData.length === 0) && this.state.userRole === "admin" && App.state.practicumData) {
+          // Pangkalan data awan masih kosong, muat naik data sedia ada Cikgu buat kali pertama
+          await this.uploadToCloud(App.state.practicumData);
+        }
+
+        this.state.lastSyncTime = new Date();
+        this.updateStatusPill("connected", "Cloud Live (Real-Time)");
+      } else {
+        this.updateStatusPill("error", "Ralat Cloud (" + res.status + ")");
+      }
     } catch (err) {
       console.warn("Penyegerakan Cloud:", err);
-      this.updateStatusPill("connected", "Tersimpan Tempatan");
+      this.updateStatusPill("error", "Gagal Hubung Cloud");
     } finally {
       this.state.isSyncing = false;
     }
   },
 
-  // 10. Muat naik kemaskini baharu ke Cloud (Dipanggil automatik setiap kali Cikgu simpan sesi)
+  // 10. Muat naik kemaskini baharu ke Cloud
   uploadToCloud: async function(practicumData) {
     const timestamp = Date.now();
     localStorage.setItem("ubk_last_local_update", timestamp.toString());
@@ -249,24 +343,40 @@ const CloudSync = {
       } catch (e) {}
     }
 
-    if (!this.state.isOnline) return;
+    const endpoint = this.state.activeEndpoint;
+    if (!this.state.isOnline || !endpoint) return;
 
     this.updateStatusPill("syncing", "Menyimpan ke Cloud...");
 
     try {
-      const cloudEndpoint = localStorage.getItem("ubk_cloud_endpoint") || "";
-      const cloudKey = localStorage.getItem("ubk_cloud_key") || this.config.channelId;
+      const payload = {
+        channelId: this.config.channelId,
+        updatedAt: timestamp,
+        updatedBy: "Cikgu Nurul Syahfirah binti Arjaman",
+        practicumData: practicumData
+      };
 
-      if (cloudEndpoint) {
-        await fetch(`${cloudEndpoint.replace(/\/$/, '')}/${cloudKey}.json`, {
+      if (this.state.backendType === "gas") {
+        // Google Apps Script Web App: gunakan 'text/plain' untuk memintas sekatan CORS preflight pelayar
+        await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload)
+        });
+      } else if (this.state.backendType === "firebase") {
+        let clean = endpoint.replace(/\/$/, "");
+        if (!clean.endsWith(".json")) clean = `${clean}/${this.config.channelId}.json`;
+        await fetch(clean, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            channelId: cloudKey,
-            updatedAt: timestamp,
-            updatedBy: "Cikgu Nurul Syahfirah binti Arjaman",
-            practicumData: practicumData
-          })
+          body: JSON.stringify(payload)
+        });
+      } else {
+        // Cloudflare Pages / REST API
+        await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
         });
       }
 
@@ -274,7 +384,7 @@ const CloudSync = {
       this.updateStatusPill("connected", "Cloud Live (Real-Time)");
     } catch (err) {
       console.warn("Gagal muat naik ke cloud:", err);
-      this.updateStatusPill("connected", "Tersimpan Tempatan");
+      this.updateStatusPill("error", "Gagal Simpan Cloud");
     }
   },
 
@@ -282,7 +392,6 @@ const CloudSync = {
   handleIncomingData: function(newData, sourceLabel = "Cloud") {
     if (!Array.isArray(newData) || newData.length === 0) return;
 
-    // Semak sama ada data benar-benar berbeza untuk elak render berulang
     const currentJson = JSON.stringify(App.state.practicumData);
     const newJson = JSON.stringify(newData);
     if (currentJson === newJson) return;
@@ -290,18 +399,67 @@ const CloudSync = {
     App.state.practicumData = newData;
     localStorage.setItem("ubk_practicum_schedule_2026", newJson);
 
-    // Kemas kini keseluruhan paparan aplikasi secara reaktif
     App.render();
-
-    // Paparkan notifikasi kemaskini halus
     App.showToast(`🔄 Jadual dikemaskini secara langsung daripada ${sourceLabel}!`, null, 3500);
   },
 
-  // 12. Kemas kini lencana status di header banner
+  // 12. Uji Sambungan Backend (Untuk Butang 'Uji Sambungan' di UI)
+  testConnection: async function(testUrl) {
+    if (!testUrl || !testUrl.trim().startsWith("http")) {
+      return { success: false, message: "Sila masukkan URL yang sah (bermula dengan http:// atau https://)" };
+    }
+
+    const url = testUrl.trim();
+    try {
+      let fetchUrl = url;
+      let isFirebase = url.includes("firebaseio.com") || url.includes("firebasedatabase.app");
+      
+      if (isFirebase) {
+        let clean = url.replace(/\/$/, "");
+        if (!clean.endsWith(".json")) clean = `${clean}/${this.config.channelId}.json`;
+        fetchUrl = clean;
+      }
+
+      const res = await fetch(fetchUrl, {
+        method: "GET",
+        headers: { "Accept": "application/json" }
+      });
+
+      if (res.ok) {
+        return {
+          success: true,
+          message: isFirebase 
+            ? "✅ Berjaya! Sambungan ke Google Firebase Realtime Database aktif." 
+            : "✅ Berjaya! Sambungan ke Google Apps Script Web App berfungsi dengan cemerlang."
+        };
+      } else {
+        return { success: false, message: `Ralat HTTP (${res.status}): Sila pastikan pangkalan data dibuka kepada awam (Anyone / Read: true).` };
+      }
+    } catch (err) {
+      return { success: false, message: `Gagal berhubung: ${err.message || "Ralat rangkaian / CORS"}` };
+    }
+  },
+
+  // 13. Simpan URL Backend Baharu
+  saveBackendConfig: function(url) {
+    const cleanUrl = (url || "").trim();
+    if (!cleanUrl) {
+      localStorage.removeItem("ubk_cloud_endpoint");
+      this.state.activeEndpoint = "";
+      this.state.backendType = "none";
+      this.updateStatusPill("unconfigured", "Cloud Belum Disambung");
+      return;
+    }
+
+    localStorage.setItem("ubk_cloud_endpoint", cleanUrl);
+    this.setupActiveBackend();
+    this.syncWithCloud();
+  },
+
+  // 14. Kemas kini lencana status di header banner
   updateStatusPill: function(status, text) {
     this.state.syncStatus = status;
 
-    const iconEl = document.getElementById("cloudStatusIcon");
     const labelEl = document.getElementById("cloudStatusLabel");
     const dotEl = document.getElementById("cloudStatusDot");
 
@@ -317,9 +475,11 @@ const CloudSync = {
     } else if (status === "error") {
       icon = "🔴";
       bg = "#ef4444";
+    } else if (status === "unconfigured") {
+      icon = "⚪";
+      bg = "#94a3b8";
     }
 
-    if (iconEl) iconEl.textContent = icon;
     if (labelEl) labelEl.textContent = text || "Cloud Live";
     if (dotEl) {
       dotEl.textContent = icon;
@@ -327,7 +487,7 @@ const CloudSync = {
     }
   },
 
-  // 13. Jana Pautan Perkongsian Pintar
+  // 15. Jana Pautan Perkongsian Pintar (Disertakan Backend URL jika ada)
   getShareableUrl: function(role = "viewer") {
     const origin = window.location.origin;
     const pathname = window.location.pathname;
@@ -339,10 +499,15 @@ const CloudSync = {
       url.searchParams.set("role", "admin");
     }
 
+    // Masukkan parameter backend URL supaya peranti yang mengimbas QR/link automatik bersambung
+    if (this.state.activeEndpoint && this.state.activeEndpoint.startsWith("http")) {
+      url.searchParams.set("backend", encodeURIComponent(this.state.activeEndpoint));
+    }
+
     return url.toString();
   },
 
-  // 14. Jana Kod QR Dinamik
+  // 16. Jana Kod QR Dinamik
   getQrCodeUrl: function(targetUrl, size = 200) {
     return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=10&data=${encodeURIComponent(targetUrl)}`;
   }

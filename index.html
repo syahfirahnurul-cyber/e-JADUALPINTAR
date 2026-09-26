@@ -32,7 +32,7 @@
           <span id="cloudStatusLabel">Live Sync</span>
         </button>
 
-        <button class="btn btn-primary" onclick="App.openAddSessionModal()">
+        <button class="btn btn-primary" id="btnOpenAddSession" onclick="App.openAddSessionModal()">
           <span>➕</span> Tambah Sesi
         </button>
         <button class="btn btn-accent" onclick="App.openSlotFinderModal()" title="Cari waktu subjek bukan teras murid secara automatik">
@@ -45,37 +45,27 @@
           <span>🖨️</span> Cetak Mingguan
         </button>
 
-        <!-- Dropdown Menu Alat Praktikum -->
+        <!-- Dropdown Menu Alat Praktikum (Ringkas & Teratur) -->
         <div class="dropdown-wrapper">
           <button class="btn btn-ghost" id="toolsDropdownBtn" onclick="App.toggleToolsMenu()">
             <span>⚡</span> Alat Praktikum ▾
           </button>
           <div class="dropdown-menu" id="toolsDropdownMenu">
-            <button class="dropdown-item" onclick="App.openCloudSyncModal()">
-              <span>🌐</span> Cloud Real-Time & Kongsi Link
-            </button>
-            <button class="dropdown-item" onclick="App.openDeviceSyncModal()">
-              <span>📱</span> Segerak ke Telefon / Device Lain
-            </button>
-            <button class="dropdown-item" onclick="App.exportCodeForGitHub()">
-              <span>🚀</span> Muat Turun Kod untuk GitHub (Live)
-            </button>
-            <hr style="margin: 4px 0; border: none; border-top: 1px solid #e2e8f0;">
             <button class="dropdown-item" onclick="App.openCloneWeekModal()">
-              <span>📋</span> Salin ke Minggu Hadapan
+              <span>📋</span> Salin Jadual ke Minggu Hadapan
             </button>
             <button class="dropdown-item" onclick="App.exportToExcelCSV()">
-              <span>📥</span> Muat Turun Excel (CSV)
+              <span>📥</span> Muat Turun Rekod (Excel CSV)
             </button>
             <button class="dropdown-item" onclick="App.downloadBackupJSON()">
-              <span>💾</span> Simpan Sandaran (Backup)
+              <span>💾</span> Simpan Sandaran (Backup JSON)
             </button>
             <button class="dropdown-item" onclick="App.openRestoreBackupModal()">
-              <span>📂</span> Muat Naik Sandaran (Restore)
+              <span>📂</span> Muat Naik Sandaran (Restore JSON)
             </button>
             <hr style="margin: 4px 0; border: none; border-top: 1px solid #e2e8f0;">
             <button class="dropdown-item" style="color: #be123c;" onclick="App.resetPracticumData()">
-              <span>🔄</span> Reset Template Asal
+              <span>🔄</span> Tetapkan Semula Jadual (Reset)
             </button>
           </div>
         </div>
@@ -683,55 +673,15 @@
     </div>
   </div>
 
-  <!-- Modal: Segerak ke Telefon & Peranti Lain (Device Sync) -->
-  <div class="modal-overlay" id="deviceSyncModal">
-    <div class="modal-card" style="max-width: 520px;">
-      <div class="modal-header">
-        <h3 style="font-family: 'Outfit'; font-weight: 700; color: var(--primary);">📱 Segerak ke Telefon / Peranti Lain</h3>
-        <button onclick="App.closeDeviceSyncModal()" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b;">✕</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 0.88rem; color: #475569; margin-bottom: 0.85rem;">
-          Imbas kod QR di bawah menggunakan <strong>kamera telefon anda</strong>, atau salin pautan dan hantar ke <strong>WhatsApp</strong> peribadi. Semua sesi, murid dan nota akan terus disegerakkan ke telefon anda secara automatik!
-        </p>
-
-        <!-- QR Code Container -->
-        <div id="syncQrCodeContainer" style="text-align: center; margin: 1rem 0; padding: 1.25rem; background: #f8fafc; border: 1.5px dashed #93c5fd; border-radius: 12px;">
-          <!-- QR Code Image generated dynamically -->
-        </div>
-
-        <!-- Pautan Teks & Butang Salin -->
-        <label style="font-size: 0.8rem; font-weight: 700; color: #334155; display: block; margin-bottom: 4px;">Pautan Segerak Pintar:</label>
-        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-          <input type="text" id="syncLinkInput" class="form-control" readonly style="font-size: 0.78rem; background: #f1f5f9; color: #334155;">
-          <button type="button" class="btn btn-primary" onclick="App.copySyncLink()" style="white-space: nowrap; flex-shrink: 0;">
-            📋 Salin Pautan
-          </button>
-        </div>
-
-        <button type="button" class="btn btn-accent" id="btnWebShare" onclick="App.shareSyncLink()" style="width: 100%; justify-content: center; margin-top: 0.25rem;">
-          📤 Kongsi ke WhatsApp / Aplikasi Lain
-        </button>
-
-        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 0.6rem 0.8rem; font-size: 0.8rem; color: #166534; margin-top: 0.85rem;">
-          🔒 <em>Privasi Terjamin: Data disegerakkan secara terus antara peranti anda tanpa disimpan pada pelayan pihak ketiga.</em>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="App.closeDeviceSyncModal()">Tutup</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Modal: Pengurusan Cloud Real-Time & Pautan Live Rasmi -->
   <div class="modal-overlay" id="cloudSyncModal">
-    <div class="modal-card" style="max-width: 600px;">
+    <div class="modal-card" style="max-width: 640px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: white;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 1.4rem;">🌐</span>
           <div>
-            <h3 style="margin: 0; font-weight: 800; font-size: 1.15rem; color: white;">Pengurusan Cloud & Pautan Real-Time</h3>
-            <div style="font-size: 0.78rem; opacity: 0.9; color: #e0e7ff;">Akses Live & Segerak Serta-Merta untuk Semua Pengguna</div>
+            <h3 style="margin: 0; font-weight: 800; font-size: 1.15rem; color: white;">Pengurusan Cloud & Backend Real-Time</h3>
+            <div style="font-size: 0.78rem; opacity: 0.9; color: #e0e7ff;">Segerak Serta-Merta ke Telefon, Tablet & Komputer Lain</div>
           </div>
         </div>
         <button onclick="App.closeCloudSyncModal()" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: white; opacity: 0.85;">✕</button>
@@ -741,28 +691,74 @@
         <!-- Status Banner -->
         <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 0.9rem 1.1rem; margin-bottom: 1.2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 1.6rem; animation: pulseDot 2s infinite ease-in-out;">🟢</span>
+            <span style="font-size: 1.6rem;" id="modalCloudStatusIcon">🟢</span>
             <div>
               <div style="font-weight: 800; font-size: 0.92rem; color: #166534;" id="modalCloudStatusText">
-                Cloud Real-Time Aktif & Bersambung
+                Cloud Real-Time Aktif
               </div>
               <div style="font-size: 0.76rem; color: #15803d;" id="modalCloudLastSync">
-                Semua perubahan sesi disegerakkan terus ke peranti pelawat.
+                Semua perubahan sesi disegerakkan terus ke peranti lain.
               </div>
             </div>
           </div>
-          <button type="button" class="btn btn-sm" onclick="App.forceCloudSyncNow()" style="background: #15803d; color: white; font-weight: 700; border-radius: 6px; font-size: 0.78rem; padding: 5px 10px;">
+          <button type="button" class="btn btn-sm" onclick="App.forceCloudSyncNow()" style="background: #15803d; color: white; font-weight: 700; border-radius: 6px; font-size: 0.78rem; padding: 6px 12px;">
             🔄 Segerak Sekarang
           </button>
         </div>
 
-        <!-- Tab Perkongsian Pautan -->
-        <div style="margin-bottom: 1rem;">
+        <!-- Bahagian 1: Tetapan Pangkalan Data Cloud (Backend Database) -->
+        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1rem 1.1rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <h4 style="font-size: 0.9rem; font-weight: 800; color: #1e3a8a; margin: 0; display: flex; align-items: center; gap: 6px;">
+              <span>⚙️</span> Sambungan Pangkalan Data Backend
+            </h4>
+            <span id="backendTypeBadge" style="font-size: 0.72rem; font-weight: 700; background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 12px;">
+              Mod Tempatan
+            </span>
+          </div>
+          <p style="font-size: 0.78rem; color: #64748b; margin-bottom: 8px; line-height: 1.5;">
+            Masukkan URL Web App (Google Sheets) atau Firebase Realtime Database anda di bawah untuk membolehkan semua perubahan disegerakkan secara langsung ke semua peranti:
+          </p>
+
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 8px;">
+            <input type="text" id="backendEndpointInput" class="form-control" placeholder="https://script.google.com/macros/s/.../exec atau URL Firebase" style="font-size: 0.8rem;">
+            <button type="button" class="btn btn-secondary" onclick="App.testBackendConnection()" style="white-space: nowrap; font-size: 0.78rem; padding: 6px 10px;">
+              🧪 Uji Sambungan
+            </button>
+            <button type="button" class="btn btn-primary" onclick="App.saveBackendConnection()" style="white-space: nowrap; font-size: 0.78rem; padding: 6px 12px; background: #166534; border-color: #166534;">
+              💾 Simpan
+            </button>
+          </div>
+
+          <!-- Alert Maklum Balas Ujian Sambungan -->
+          <div id="backendTestAlert" style="display: none; padding: 0.55rem 0.85rem; border-radius: 6px; font-size: 0.78rem; margin-bottom: 8px;"></div>
+
+          <!-- Panduan Pilihan Backend -->
+          <details style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.55rem 0.8rem; margin-top: 6px;">
+            <summary style="font-size: 0.78rem; font-weight: 700; color: #0369a1; cursor: pointer;">
+              📖 Panduan 3 Minit: Cara Cipta Google Sheets Backend (100% Percuma & Mudah)
+            </summary>
+            <div style="font-size: 0.76rem; color: #334155; line-height: 1.6; margin-top: 6px;">
+              <ol style="padding-left: 1.2rem; margin: 0;">
+                <li>Buka <a href="https://sheets.google.com" target="_blank" style="color: #2563eb; font-weight: 700;">Google Sheets</a> dan cipta lembaran baharu.</li>
+                <li>Klik menu <strong>Extensions (Pelanjutan) ➔ Apps Script</strong>.</li>
+                <li>Buka fail <code>backend/google-apps-script.js</code> dalam projek ini, salin seluruh kandungannya dan tampal ke Apps Script.</li>
+                <li>Klik ikon Simpan 💾, kemudian klik butang biru <strong>Deploy ➔ New deployment</strong>.</li>
+                <li>Pilih <strong>Web App</strong>. Tetapkan <em>Execute as: Me</em> dan <em>Who has access: <strong>Anyone</strong></em>.</li>
+                <li>Klik <strong>Deploy</strong>, benarkan akses (Review permissions ➔ Advanced ➔ Go to project ➔ Allow), dan salin Web App URL yang diberikan.</li>
+                <li>Tampal URL tersebut ke dalam kotak di atas dan klik <strong>Simpan</strong>!</li>
+              </ol>
+            </div>
+          </details>
+        </div>
+
+        <!-- Bahagian 2: Pautan & Kod QR (Live Share) -->
+        <div style="margin-bottom: 1.1rem;">
           <h4 style="font-size: 0.88rem; font-weight: 800; color: #1e3a8a; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
             <span>🔗</span> Pautan Rasmi Sekolah & Murid (Mod Paparan Sahaja)
           </h4>
           <p style="font-size: 0.78rem; color: #64748b; margin-bottom: 6px;">
-            Kongsi pautan ini kepada <strong>Guru Besar, Pensyarah Pembimbing, Guru Kelas, Murid & Ibu Bapa</strong>. Mereka boleh melihat jadual yang sentiasa dikemaskini tanpa risiko mengubah atau memadam sesi anda.
+            Kongsi pautan ini kepada <strong>Guru Besar, Pensyarah Pembimbing, Guru Kelas, Murid & Ibu Bapa</strong>. Mereka boleh melihat jadual yang sentiasa dikemaskini secara live tanpa risiko terpadam sesi anda.
           </p>
           <div style="display: flex; gap: 0.5rem; margin-bottom: 6px;">
             <input type="text" id="publicShareLinkInput" class="form-control" readonly style="font-size: 0.8rem; background: #f8fafc; font-weight: 600; color: #0369a1;">
@@ -770,7 +766,7 @@
               📋 Salin Pautan
             </button>
           </div>
-          <button type="button" class="btn btn-sm" onclick="App.sharePublicViaWhatsApp()" style="background: #25d366; color: white; font-weight: 700; border-radius: 6px; width: 100%; justify-content: center; margin-bottom: 1.1rem; display: flex; align-items: center; gap: 6px;">
+          <button type="button" class="btn btn-sm" onclick="App.sharePublicViaWhatsApp()" style="background: #25d366; color: white; font-weight: 700; border-radius: 6px; width: 100%; justify-content: center; margin-bottom: 1.1rem; display: flex; align-items: center; gap: 6px; padding: 7px;">
             <span>📱</span> Kongsi Pautan ke WhatsApp
           </button>
         </div>
@@ -793,10 +789,13 @@
           </div>
         </div>
 
-        <!-- Kod QR Dinamik -->
+        <!-- Kod QR Dinamik Pintar -->
         <div style="text-align: center; background: #f1f5f9; border-radius: 10px; padding: 1rem; margin-bottom: 1.1rem;">
-          <div style="font-size: 0.82rem; font-weight: 700; color: #1e3a8a; margin-bottom: 6px;">
-            📷 Imbas Kod QR Ini dengan Kamera Telefon untuk Membuka Jadual Live:
+          <div style="font-size: 0.82rem; font-weight: 700; color: #1e3a8a; margin-bottom: 4px;">
+            📷 Imbas Kod QR Ini dengan Telefon untuk Membuka Jadual Live:
+          </div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 8px;">
+            Peranti yang mengimbas QR ini akan disegerakkan secara automatik ke pangkalan data cloud.
           </div>
           <div id="cloudQrContainer"></div>
         </div>
@@ -809,9 +808,9 @@
           <div style="font-size: 0.8rem; color: #78350f; line-height: 1.6; margin-top: 8px;">
             <ol style="padding-left: 1.2rem; margin: 0;">
               <li><strong>Muat Naik ke GitHub</strong>: Buka <a href="https://github.com" target="_blank" style="color: #1e40af; font-weight: 700;">github.com</a>, cipta repositori baharu bernama <code>jadual-ubk-sk-tampasuk</code>.</li>
-              <li><strong>Muat naik fail-fail projek ini</strong> (<code>index.html</code>, folder <code>css</code>, <code>js</code>, <code>data</code>, dan <code>img</code>).</li>
+              <li><strong>Muat naik fail-fail projek ini</strong> (<code>index.html</code>, folder <code>css</code>, <code>js</code>, <code>data</code>, <code>backend</code>, dan <code>img</code>).</li>
               <li><strong>Aktifkan GitHub Pages</strong>: Masuk ke <em>Settings ➔ Pages</em>, di bahagian <em>Branch</em> pilih <code>main</code>, dan tekan <em>Save</em>.</li>
-              <li>Dalam 1 minit, laman web anda akan <strong>LIVE 24/7 di seluruh dunia</strong> dengan link rasmi: <code>https://&lt;username&gt;.github.io/jadual-ubk-sk-tampasuk/</code>!</li>
+              <li>Laman web anda akan <strong>LIVE 24/7 di seluruh dunia</strong> dengan link rasmi: <code>https://&lt;username&gt;.github.io/jadual-ubk-sk-tampasuk/</code>!</li>
             </ol>
           </div>
         </details>
