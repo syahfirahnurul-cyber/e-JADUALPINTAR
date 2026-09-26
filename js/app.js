@@ -372,9 +372,12 @@ const App = {
       }
     }
 
+    // 8. Auto-Set Jam Sekolah Mengikut Loceng PdPC SK Tampasuk 1 Bebas Pertindihan
+    this.autoSetSchoolHoursForCurrentForm(true);
+
     this.checkFormConflict();
     this.renderClassSuggestions();
-    this.showToast(`✨ Maklumat ${client.name} & ${nextSessionTag} berjaya dimasukkan!`);
+    this.showToast(`✨ Maklumat ${client.name} (${nextSessionTag}) & waktu persekolahan bebas pertindihan berjaya ditetapkan!`);
   },
 
   saveCurrentFormAsClientProfile: function() {
@@ -895,6 +898,7 @@ const App = {
     this.renderPracticumTable();
     this.renderPracticumHoursDashboard();
     this.renderTodayDashboard();
+    this.renderClientNextSessionWidget();
     this.renderOfficialIpgmForms();
     this.renderClassScheduleTable();
     this.renderTeacherScheduleTable();
@@ -1026,6 +1030,7 @@ const App = {
     });
 
     this.renderStatsSummary(weekData);
+    this.renderClientNextSessionWidget();
   },
 
   // Ringkasan Statistik Aktiviti Mingguan & Pencapaian
@@ -1647,6 +1652,469 @@ const App = {
       this.renderPracticumTable();
       this.renderPracticumHoursDashboard();
     }
+  },
+
+  // =========================================================
+  // FUNGSI AUTO-SET JAM SEKOLAH (MENGIKUT LOCENG PDPC SK TAMPASUK 1)
+  // =========================================================
+  autoSetSchoolHoursForCurrentForm: function(silent = false) {
+    const dayEl = document.getElementById("formDay");
+    const classEl = document.getElementById("formClassTarget");
+    const typeEl = document.getElementById("formType");
+    const startEl = document.getElementById("formTimeStart");
+    const endEl = document.getElementById("formTimeEnd");
+    
+    if (!dayEl || !startEl || !endEl) return;
+
+    const weekNum = parseInt(document.getElementById("formWeekNum")?.value || this.state.currentWeek, 10);
+    const day = dayEl.value || "ISNIN";
+    const type = typeEl?.value || "individu";
+
+    // Ambil kelas daripada borang atau murid terpilih
+    let rawClass = classEl?.value?.trim() || "";
+    if (!rawClass && this.state.selectedStudentsInForm && this.state.selectedStudentsInForm.length > 0) {
+      rawClass = this.state.selectedStudentsInForm[0].className || "";
+    }
+    const normClass = this.normalizeClassName(rawClass);
+
+    // Cari slot terbaik hari ini
+    let candidateSlots = this.findSmartFollowUpSlots(weekNum, day, "08.40", "09.40", normClass, type);
+    let chosenDay = day;
+    let bestSlot = null;
+
+    if (candidateSlots && candidateSlots.length > 0) {
+      bestSlot = candidateSlots[0];
+    } else {
+      // Jika hari semasa tiada slot bebas, cari slot terbaik merentasi seluruh minggu
+      candidateSlots = this.findSmartFollowUpSlots(weekNum, null, "08.40", "09.40", normClass, type);
+      if (candidateSlots && candidateSlots.length > 0) {
+        bestSlot = candidateSlots[0];
+        chosenDay = bestSlot.day;
+        dayEl.value = chosenDay;
+      }
+    }
+
+    if (bestSlot) {
+      startEl.value = bestSlot.timeStart;
+      endEl.value = bestSlot.timeEnd;
+      this.checkFormConflict();
+      this.renderClassSuggestions();
+      if (!silent) {
+        this.showToast(`⚡ Jam Persekolahan Diset: ${chosenDay}, ${bestSlot.timeStart} - ${bestSlot.timeEnd} (${bestSlot.classSchedNote})`, null, 3500);
+      }
+    } else {
+      startEl.value = "08.40";
+      endEl.value = "09.40";
+      this.checkFormConflict();
+      if (!silent) {
+        this.showToast(`ℹ️ Jam diset ke waktu kebiasaan UBK: 08.40 - 09.40`, null, 3000);
+      }
+    }
+  },
+
+  // =========================================================
+  // ENJIN CADANGAN SESI SETERUSNYA KLIEN SEDIA ADA (SMART SUGGESTIONS)
+  // =========================================================
+  getClientNextSessionSuggestions: function(targetWeekNum) {
+    if (targetWeekNum < 1 || targetWeekNum > 10) return [];
+    const targetWeekData = this.state.practicumData.find(w => w.weekNum === targetWeekNum);
+    if (!targetWeekData) return [];
+
+    const scheduledSessions = targetWeekData.sessions || [];
+    
+    // Kumpul senarai pengenalan klien yang SUDAH dijadualkan dalam minggu sasaran
+    const scheduledClientKeys = new Set();
+    scheduledSessions.forEach(s => {
+      if (s.type === 'individu' || s.type === 'kelompok') {
+        if (s.students && s.students.length > 0) {
+          s.students.forEach(st => {
+            if (st.ic) scheduledClientKeys.add(String(st.ic).trim());
+            if (st.name) scheduledClientKeys.add(String(st.name).trim().toUpperCase());
+          });
+        }
+        if (s.title) {
+          scheduledClientKeys.add(String(s.title).trim().toUpperCase());
+        }
+        if (s.classTarget && s.type === 'kelompok') {
+          scheduledClientKeys.add('KELOMPOK_' + String(s.classTarget).trim().toUpperCase());
+        }
+      }
+    });
+
+    const candidateMap = new Map();
+
+    // 1. Imbas minggu-minggu sebelumnya secara menurun (cth: M4 -> M3, M2, M1)
+    for (let w = targetWeekNum - 1; w >= 1; w--) {
+      const pastWeek = this.state.practicumData.find(pw => pw.weekNum === w);
+      if (!pastWeek || !pastWeek.sessions) continue;
+
+      pastWeek.sessions.forEach(ps => {
+        if (ps.type !== 'individu' && ps.type !== 'kelompok') return;
+        if (ps.status === 'batal') return;
+
+        let clientKey = "";
+        let clientName = "";
+        let className = ps.classTarget || "";
+        let isAlreadyScheduled = false;
+
+        if (ps.students && ps.students.length > 0) {
+          const firstSt = ps.students[0];
+          clientKey = firstSt.ic ? String(firstSt.ic).trim() : String(firstSt.name).trim().toUpperCase();
+          clientName = (ps.type === 'individu' || ps.students.length === 1) 
+            ? firstSt.name 
+            : (ps.title || `Kelompok (${className || firstSt.className || ''})`);
+          className = firstSt.className || className;
+
+          // Semak jika mana-mana murid dalam sesi ini sudah ada sesi minggu ini
+          isAlreadyScheduled = ps.students.some(st => {
+            return (st.ic && scheduledClientKeys.has(String(st.ic).trim())) ||
+                   (st.name && scheduledClientKeys.has(String(st.name).trim().toUpperCase()));
+          });
+        } else {
+          clientKey = String(ps.title || 'Sesi').trim().toUpperCase();
+          clientName = ps.title || 'Klien Sedia Ada';
+          isAlreadyScheduled = scheduledClientKeys.has(clientKey);
+        }
+
+        if (ps.type === 'kelompok' && className) {
+          if (scheduledClientKeys.has('KELOMPOK_' + String(className).trim().toUpperCase())) {
+            isAlreadyScheduled = true;
+          }
+        }
+
+        if (isAlreadyScheduled) return;
+
+        // Jika belum ada dalam candidateMap, masukkan (kerana imbasan dari minggu terkini ke belakang)
+        if (!candidateMap.has(clientKey)) {
+          candidateMap.set(clientKey, {
+            clientKey: clientKey,
+            clientName: clientName,
+            className: className,
+            type: ps.type,
+            sourceSession: ps,
+            sourceWeek: w,
+            lastTag: ps.sessionTag || (ps.notes && ps.notes.match(/Sesi \d+/)?.[0]) || 'Sesi 1'
+          });
+        }
+      });
+    }
+
+    // 2. Imbas juga profil klien tersimpan (Saved Clients)
+    if (Array.isArray(this.state.savedClients)) {
+      this.state.savedClients.forEach(sc => {
+        let clientKey = sc.id;
+        let isAlreadyScheduled = false;
+        if (sc.students && sc.students.length > 0) {
+          isAlreadyScheduled = sc.students.some(st => {
+            return (st.ic && scheduledClientKeys.has(String(st.ic).trim())) ||
+                   (st.name && scheduledClientKeys.has(String(st.name).trim().toUpperCase()));
+          });
+        }
+        if (isAlreadyScheduled) return;
+
+        if (!candidateMap.has(clientKey)) {
+          const pseudoSession = {
+            type: sc.type,
+            title: sc.name,
+            classTarget: sc.targetClass || (sc.students && sc.students[0] ? sc.students[0].className : ''),
+            students: sc.students || [],
+            focus: sc.focus || 'sahsiah',
+            sessionTag: sc.lastSessionTag || 'Sesi 1'
+          };
+          candidateMap.set(clientKey, {
+            clientKey: clientKey,
+            clientName: sc.name,
+            className: pseudoSession.classTarget,
+            type: sc.type,
+            sourceSession: pseudoSession,
+            sourceWeek: null,
+            lastTag: sc.lastSessionTag || 'Sesi 1'
+          });
+        }
+      });
+    }
+
+    // 3. Untuk setiap calon, kira Tag Sesi Seterusnya & cari Slot Pintar Waktu Sekolah Terbaik
+    const suggestions = [];
+    candidateMap.forEach(cand => {
+      const nextTag = this.calcNextSessionTag(cand.lastTag);
+      const normClass = this.normalizeClassName(cand.className);
+
+      // Cari slot terbaik yang selaras dengan loceng PdPC SK Tampasuk 1 & bebas pertindihan
+      const candidateSlots = this.findSmartFollowUpSlots(
+        targetWeekNum,
+        null,
+        "08.40",
+        "09.40",
+        normClass,
+        cand.type
+      );
+
+      if (candidateSlots && candidateSlots.length > 0) {
+        const bestSlot = candidateSlots[0];
+        suggestions.push({
+          clientKey: cand.clientKey,
+          name: cand.clientName,
+          type: cand.type,
+          className: normClass || cand.className || 'Umum',
+          students: cand.sourceSession.students || [],
+          sourceSession: cand.sourceSession,
+          sourceWeek: cand.sourceWeek,
+          lastTag: cand.lastTag,
+          nextTag: nextTag,
+          bestSlot: bestSlot,
+          candidateSlots: candidateSlots
+        });
+      }
+    });
+
+    // Hadkan kepada 6 cadangan terbaik
+    return suggestions.slice(0, 6);
+  },
+
+  // =========================================================
+  // PAPARAN WIDGET CADANGAN SESI SETERUSNYA KLIEN SEDIA ADA
+  // =========================================================
+  renderClientNextSessionWidget: function() {
+    const container = document.getElementById("clientNextSessionSuggestionsWidget");
+    if (!container) return;
+
+    const weekNum = this.state.currentWeek;
+    if (weekNum < 1 || weekNum > 10) {
+      container.style.display = "none";
+      return;
+    }
+
+    const suggestions = this.getClientNextSessionSuggestions(weekNum);
+    if (!suggestions || suggestions.length === 0) {
+      container.style.display = "none";
+      container.innerHTML = "";
+      return;
+    }
+
+    container.style.display = "block";
+
+    let cardsHtml = "";
+    suggestions.forEach((sug, idx) => {
+      const typeBadge = (sug.type === 'individu') 
+        ? '<span class="badge" style="background:#dbeafe; color:#1d4ed8; font-weight:700; font-size:0.7rem;">KI (Individu)</span>' 
+        : '<span class="badge" style="background:#fce7f3; color:#be185d; font-weight:700; font-size:0.7rem;">KK (Kelompok)</span>';
+
+      cardsHtml += `
+        <div style="background: white; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.04); transition: transform 0.15s ease;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+              <div style="flex: 1;">
+                <span style="font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Klien Sedia Ada:</span>
+                <div style="font-weight: 800; color: #1e3a8a; font-size: 0.95rem; line-height: 1.25; margin-top: 1px;">
+                  👤 ${sug.name}
+                </div>
+                <div style="font-size: 0.76rem; color: #475569; margin-top: 3px; display: flex; align-items: center; gap: 6px;">
+                  <span>🏫 Kelas: <strong>${sug.className}</strong></span> • ${typeBadge}
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span class="badge badge-session-tag" style="font-size: 0.8rem; padding: 4px 8px; background: #eff6ff; color: #1d4ed8; border: 1.5px solid #93c5fd; font-weight: 800;">
+                  🏷️ ${sug.nextTag}
+                </span>
+                <div style="font-size: 0.68rem; color: #059669; font-weight: 800; margin-top: 3px;">
+                  Status: K (Kes Berulang)
+                </div>
+              </div>
+            </div>
+
+            <!-- Cadangan Jam Waktu Sekolah -->
+            <div style="background: #f0fdf4; border: 1.2px solid #86efac; border-radius: 8px; padding: 8px 10px; margin: 8px 0;">
+              <div style="font-weight: 800; color: #15803d; display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem;">
+                <span style="display: flex; align-items: center; gap: 4px;">
+                  <span>⏱️</span> Waktu Loceng PdPC Disyorkan:
+                </span>
+                <span style="background: #dcfce7; color: #166534; font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; font-weight: 700;">
+                  ✓ 1 Jam (2 Waktu)
+                </span>
+              </div>
+              <div style="font-size: 0.92rem; font-weight: 800; color: #166534; margin-top: 3px; letter-spacing: 0.2px;">
+                📅 ${sug.bestSlot.day} • 🕒 ${sug.bestSlot.timeStart} - ${sug.bestSlot.timeEnd}
+              </div>
+              <div style="font-size: 0.72rem; color: #15803d; margin-top: 2px; font-weight: 600;">
+                🛡️ ${sug.bestSlot.classSchedNote}
+              </div>
+            </div>
+          </div>
+
+          <!-- Butang Tindakan Pantas -->
+          <div style="display: flex; gap: 6px; margin-top: 8px;">
+            <button type="button" class="btn btn-sm btn-primary" onclick="App.autoScheduleClientFromSuggestion(${weekNum}, ${idx})" style="flex: 1; background: #166534; border-color: #166534; font-weight: 800; font-size: 0.8rem; padding: 7px 10px; display: flex; align-items: center; justify-content: center; gap: 5px;" title="Terus sahkan dan masukkan sesi susulan ini ke jadual minggu ${weekNum}">
+              <span>⚡</span> 1-Klik Masuk Jadual
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="App.customizeClientSuggestion(${weekNum}, ${idx})" style="font-size: 0.8rem; padding: 7px 10px; font-weight: 700;" title="Pilih slot hari atau masa lain">
+              <span>✏️</span> Sesuaikan
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = `
+      <div style="background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%); border: 2px solid #3b82f6; border-radius: 12px; padding: 14px 16px; margin-bottom: 1.25rem; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.09);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.35rem;">⚡</span>
+            <div>
+              <h3 style="font-family: 'Outfit'; font-size: 1.02rem; font-weight: 800; color: #1e3a8a; margin: 0;">
+                Cadangan Sesi Seterusnya — Klien Sedia Ada (Minggu ${weekNum})
+              </h3>
+              <p style="font-size: 0.74rem; color: #475569; margin: 0;">
+                Klien berikut pernah menjalani sesi terdahulu dan belum berjadual untuk minggu ini. Jam sesi dipadankan automatik mengikut jadual loceng sekolah (1 Jam) bebas pertindihan.
+              </p>
+            </div>
+          </div>
+          <span style="background: #2563eb; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800;">
+            ${suggestions.length} Cadangan Menunggu
+          </span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 10px;">
+          ${cardsHtml}
+        </div>
+      </div>
+    `;
+  },
+
+  // 1-Klik Sahkan Jadualkan Klien daripada Cadangan
+  autoScheduleClientFromSuggestion: function(weekNum, suggestionIdx) {
+    if (typeof CloudSync !== "undefined" && CloudSync.state.userRole === "viewer") {
+      this.showToast("👁️ Mod Paparan Awam: Hanya Kaunselor dibenarkan menjadualkan sesi.", null, 3500);
+      return;
+    }
+    const suggestions = this.getClientNextSessionSuggestions(weekNum);
+    const item = suggestions[suggestionIdx];
+    if (!item) {
+      alert("⚠️ Cadangan sesi tidak ditemui atau telah dikemaskini.");
+      return;
+    }
+
+    this.confirmAutoFollowUp(
+      weekNum,
+      item.bestSlot.day,
+      item.bestSlot.timeStart,
+      item.bestSlot.timeEnd,
+      item.sourceSession,
+      item.nextTag
+    );
+  },
+
+  // Sesuaikan Cadangan Sesi
+  customizeClientSuggestion: function(weekNum, suggestionIdx) {
+    const suggestions = this.getClientNextSessionSuggestions(weekNum);
+    const item = suggestions[suggestionIdx];
+    if (!item) return;
+    this.openFollowUpModalForClient(weekNum, item);
+  },
+
+  // Papar Modal Penyesuaian Slot Cadangan
+  openFollowUpModalForClient: function(targetWeekNum, item) {
+    if (typeof CloudSync !== "undefined" && CloudSync.state.userRole === "viewer") {
+      this.showToast("👁️ Mod Paparan Awam: Hanya Kaunselor dibenarkan menjadualkan sesi.", null, 3500);
+      return;
+    }
+    const modalEl = document.getElementById("autoFollowUpModal");
+    const contentEl = document.getElementById("followUpModalContent");
+    if (!modalEl || !contentEl) return;
+
+    const daysList = ["ISNIN", "SELASA", "RABU", "KHAMIS", "JUMAAT"];
+    const candidateSlots = item.candidateSlots || [];
+    const bestSlot = item.bestSlot || (candidateSlots.length > 0 ? candidateSlots[0] : { day: "ISNIN", timeStart: "08.40", timeEnd: "09.40", classSchedNote: "Waktu Standard UBK" });
+    const normClass = item.className || "";
+
+    let slotOptionsHtml = "";
+    candidateSlots.slice(0, 6).forEach((cs, idx) => {
+      const label = `${idx === 0 ? '⭐ [DISYORKAN] ' : '✓ '}${cs.day}, ${cs.timeStart} - ${cs.timeEnd} (${cs.classSchedNote})`;
+      slotOptionsHtml += `<option value="${cs.day}|${cs.timeStart}|${cs.timeEnd}" ${idx === 0 ? 'selected' : ''}>${label}</option>`;
+    });
+
+    contentEl.innerHTML = `
+      <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Profil Klien:</span>
+            <div style="font-size: 1.05rem; font-weight: 800; color: #1e3a8a;">👤 ${item.name}</div>
+            <div style="font-size: 0.8rem; color: #475569;">🏫 Kelas: <strong>${normClass || 'Umum'}</strong> • Jenis: <strong>${this.getTypeLabel(item.type)}</strong></div>
+          </div>
+          <div style="text-align: right;">
+            <span class="badge badge-session-tag" style="font-size: 0.82rem; padding: 4px 8px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">🏷️ ${item.nextTag}</span>
+            <div style="font-size: 0.72rem; color: #059669; font-weight: 700; margin-top: 3px;">Status: K (Kes Berulang)</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+        <div style="font-weight: 800; color: #166534; font-size: 0.88rem; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span>🛡️</span> Slot Waktu Persekolahan Disyorkan (Minggu ${targetWeekNum}):
+          </span>
+          <span style="font-size: 0.72rem; background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 12px; font-weight: 700;">
+            ✓ Bebas Pertindihan
+          </span>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 0.74rem; font-weight: 700; color: #166534; display: block; margin-bottom: 3px;">
+            Pilih Slot Disahkan Bebas Pertindihan:
+          </label>
+          <select id="followUpSlotPreset" class="form-control" style="font-size: 0.82rem; font-weight: 700; border-color: #86efac; background: white;" onchange="App.handleFollowUpPresetChange(this.value, ${targetWeekNum}, '${normClass}')">
+            ${slotOptionsHtml}
+            <option value="custom">✏️ Waktu Tersuai / Pilihan Sendiri...</option>
+          </select>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.1fr 1fr; gap: 8px;">
+          <div>
+            <label style="font-size: 0.75rem; font-weight: 700; color: #334155; display: block; margin-bottom: 2px;">Hari:</label>
+            <select id="followUpDay" class="form-control" style="font-size: 0.85rem; padding: 6px; font-weight: 700;" onchange="App.liveValidateFollowUpSlot(${targetWeekNum}, '${normClass}')">
+              ${daysList.map(d => `<option value="${d}" ${d === bestSlot.day ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; font-weight: 700; color: #334155; display: block; margin-bottom: 2px;">Masa (Mula - Tamat):</label>
+            <div style="display: flex; gap: 4px;">
+              <input type="text" id="followUpTimeStart" class="form-control" value="${bestSlot.timeStart}" style="font-size: 0.85rem; padding: 6px; text-align: center; font-weight: 700;" oninput="App.liveValidateFollowUpSlot(${targetWeekNum}, '${normClass}')">
+              <span style="align-self: center; font-weight: 800;">-</span>
+              <input type="text" id="followUpTimeEnd" class="form-control" value="${bestSlot.timeEnd}" style="font-size: 0.85rem; padding: 6px; text-align: center; font-weight: 700;" oninput="App.liveValidateFollowUpSlot(${targetWeekNum}, '${normClass}')">
+            </div>
+          </div>
+        </div>
+
+        <div id="followUpLiveStatus" style="margin-top: 8px;"></div>
+      </div>
+
+      <div style="font-size: 0.78rem; color: #475569; line-height: 1.4;">
+        💡 <em>Slot waktu ini mengikut jadual loceng SK Tampasuk 1 tanpa menjejaskan PdPC subjek teras klien.</em>
+      </div>
+    `;
+
+    const btnConfirm = document.getElementById("btnConfirmAutoFollowUp");
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.style.opacity = "1";
+      btnConfirm.style.cursor = "pointer";
+      btnConfirm.onclick = () => {
+        const chosenDay = document.getElementById("followUpDay")?.value || bestSlot.day;
+        const chosenStart = document.getElementById("followUpTimeStart")?.value?.trim() || bestSlot.timeStart;
+        const chosenEnd = document.getElementById("followUpTimeEnd")?.value?.trim() || bestSlot.timeEnd;
+
+        const validation = this.checkSpecificSlotConflict(targetWeekNum, chosenDay, chosenStart, chosenEnd, normClass);
+        if (validation.hasClash) {
+          alert(`⚠️ PERTINDIHAN DIKESAN:\n${validation.message}\n\nSila pilih slot waktu lain yang bebas.`);
+          return;
+        }
+
+        this.confirmAutoFollowUp(targetWeekNum, chosenDay, chosenStart, chosenEnd, item.sourceSession, item.nextTag);
+      };
+    }
+
+    modalEl.classList.add("active");
+    this.liveValidateFollowUpSlot(targetWeekNum, normClass);
   },
 
   // =========================================================
