@@ -17,7 +17,8 @@ const App = {
     quickPickerTarget: { weekNum: null, day: null, sessionIdx: null },
     quickPickerSelectedStudents: [],
     quickPickerClassFilter: "",
-    quickPickerSearchQuery: ""
+    quickPickerSearchQuery: "",
+    savedClients: []
   },
 
   // Peta Tarikh Minggu Praktikum (untuk auto-detect minggu semasa - merangkumi hujung minggu & cuti)
@@ -55,6 +56,7 @@ const App = {
     this.autoDetectCurrentWeek();
     this.showMondayAlert();
     this.checkUrlSyncData();
+    this.loadSavedClients();
     this.render();
     if (typeof CloudSync !== "undefined") {
       CloudSync.init();
@@ -72,7 +74,7 @@ const App = {
       }
     } else {
       this.state.practicumData = typeof PRACTICUM_WEEKS !== "undefined" ? JSON.parse(JSON.stringify(PRACTICUM_WEEKS)) : [];
-      this.savePracticumData();
+      localStorage.setItem("ubk_practicum_schedule_2026", JSON.stringify(this.state.practicumData));
     }
 
     // Self-healing: Selaraskan title, dateRange, dan dates rasmi dari PRACTICUM_WEEKS ke LocalStorage
@@ -85,7 +87,7 @@ const App = {
           localWeek.dates = JSON.parse(JSON.stringify(pw.dates));
         }
       });
-      this.savePracticumData();
+      localStorage.setItem("ubk_practicum_schedule_2026", JSON.stringify(this.state.practicumData));
     }
 
     // Normalise setiap sesi — tambah medan baharu jika tiada (backward compat)
@@ -103,9 +105,100 @@ const App = {
       }
     });
 
+    // Auto-Tag sesi sedia ada secara pintar mengikut urutan kronologi (Sesi 1 - 10)
+    this.autoTagExistingSessions(true);
+
     // Muat kadar dokumentasi automatik (piawai: 30 minit)
     const savedDocRate = localStorage.getItem("ubk_doc_rate");
     this.state.docRate = savedDocRate !== null ? (parseInt(savedDocRate, 10) || 0) : 30;
+  },
+
+  // =========================================================
+  // FUNGSI AUTO-TAG SEMUA SESI SEDIA ADA (SESI 1 - 10 SECARA AUTOMATIK)
+  // =========================================================
+  autoTagExistingSessions: function(silent = false) {
+    if (!this.state.practicumData || !Array.isArray(this.state.practicumData)) return 0;
+
+    const clientSessionTracker = {};
+    let taggedCount = 0;
+
+    // Susun minggu mengikut kronologi
+    const sortedWeeks = [...this.state.practicumData].sort((a, b) => a.weekNum - b.weekNum);
+    const dayOrder = { "ISNIN": 1, "SELASA": 2, "RABU": 3, "KHAMIS": 4, "JUMAAT": 5 };
+
+    sortedWeeks.forEach(w => {
+      if (!w.sessions || !Array.isArray(w.sessions)) return;
+
+      // Susun sesi mengikut urutan hari dan waktu mula
+      const sortedSessions = [...w.sessions].sort((s1, s2) => {
+        const d1 = dayOrder[s1.day] || 99;
+        const d2 = dayOrder[s2.day] || 99;
+        if (d1 !== d2) return d1 - d2;
+        const t1 = this.timeToMin ? this.timeToMin(s1.timeStart) : 0;
+        const t2 = this.timeToMin ? this.timeToMin(s2.timeStart) : 0;
+        return t1 - t2;
+      });
+
+      sortedSessions.forEach(s => {
+        if (s.type !== 'individu' && s.type !== 'kelompok') return;
+
+        // Dapatkan identiti unik klien / kelompok
+        let clientKey = "";
+
+        if (s.students && Array.isArray(s.students) && s.students.length > 0) {
+          const sortedIds = s.students
+            .map(m => String(m.id || m.ic || m.name || m).trim().toUpperCase())
+            .sort()
+            .join('__');
+          clientKey = `${s.type.toUpperCase()}__${sortedIds}`;
+        } else {
+          const cleanTitle = (s.title || "").trim().toUpperCase();
+
+          // Semak corak Kelompok
+          const kelMatch = cleanTitle.match(/KELOMPOK\s*(\d+)/i);
+          if (kelMatch) {
+            clientKey = `KELOMPOK_${kelMatch[1]}`;
+          } else if (cleanTitle.match(/^KI\s*0*8\b/i)) {
+            // Kes Khas KI08 (Minggu 3 mempunyai 4 sesi susulan berulang)
+            clientKey = "KI_08";
+          } else {
+            const kiMatch = cleanTitle.match(/^KI\s*0*(\d+)/i);
+            if (kiMatch) {
+              clientKey = `KI_${kiMatch[1]}`;
+            } else if (cleanTitle.startsWith("KI - ")) {
+              const namePart = cleanTitle.replace(/^KI\s*-\s*/, '').replace(/\(.*\)/, '').trim();
+              clientKey = `KI_${namePart}`;
+            } else {
+              clientKey = `${s.type.toUpperCase()}_${cleanTitle.replace(/\(.*\)/, '').trim()}`;
+            }
+          }
+        }
+
+        // Kira kekerapan sesi bagi klien / kelompok ini
+        clientSessionTracker[clientKey] = (clientSessionTracker[clientKey] || 0) + 1;
+        const currentCount = clientSessionTracker[clientKey];
+        const assignedTag = `Sesi ${Math.min(10, currentCount)}`;
+        const assignedStatus = (currentCount === 1) ? "B" : "K";
+
+        if (s.sessionTag !== assignedTag || s.clientStatus !== assignedStatus) {
+          s.sessionTag = assignedTag;
+          s.clientStatus = assignedStatus;
+          taggedCount++;
+        }
+      });
+    });
+
+    if (taggedCount > 0) {
+      this.savePracticumData();
+      if (!silent) {
+        this.render();
+        this.showToast(`🏷️ Sebanyak ${taggedCount} sesi telah diauto-tag dengan tepat (Sesi 1 hingga Sesi 10)!`, null, 4000);
+      }
+    } else if (!silent) {
+      this.showToast(`✅ Semua sesi kaunseling telah pun lengkap dengan tagging siri sesi!`, null, 3000);
+    }
+
+    return taggedCount;
   },
 
   setDocRate: function(rate) {
@@ -129,6 +222,335 @@ const App = {
       this.savePracticumData();
       this.render();
       alert("Jadual berjaya ditetapkan semula ke template asal.");
+    }
+  },
+
+  // =========================================================
+  // SISTEM PENGURUSAN PROFIL KLIEN BERULANG & SIRI SESI (1 - 10)
+  // =========================================================
+  loadSavedClients: function() {
+    const saved = localStorage.getItem("ubk_saved_clients_profiles");
+    if (saved) {
+      try {
+        this.state.savedClients = JSON.parse(saved);
+      } catch (e) {
+        this.state.savedClients = [];
+      }
+    } else {
+      this.state.savedClients = this.autoExtractClientsFromSchedule();
+      if (this.state.savedClients.length > 0) {
+        localStorage.setItem("ubk_saved_clients_profiles", JSON.stringify(this.state.savedClients));
+      }
+    }
+    this.populateSavedClientsDropdown();
+  },
+
+  saveSavedClients: function() {
+    localStorage.setItem("ubk_saved_clients_profiles", JSON.stringify(this.state.savedClients));
+    this.populateSavedClientsDropdown();
+  },
+
+  autoExtractClientsFromSchedule: function() {
+    const list = [];
+    const seen = new Set();
+    if (this.state.practicumData && Array.isArray(this.state.practicumData)) {
+      this.state.practicumData.forEach(w => {
+        (w.sessions || []).forEach(s => {
+          if ((s.type === 'individu' || s.type === 'kelompok') && s.students && s.students.length > 0) {
+            const key = s.students.map(m => m.id || m.name || m).sort().join('_');
+            if (!seen.has(key)) {
+              seen.add(key);
+              list.push({
+                id: 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                name: s.type === 'individu' ? (s.students[0].name || s.title) : s.title,
+                type: s.type,
+                targetClass: s.classTarget || (s.students[0] ? s.students[0].className : ''),
+                focus: s.focus || 'sahsiah',
+                students: s.students,
+                lastSessionTag: s.sessionTag || 'Sesi 1',
+                sessionCount: 1
+              });
+            }
+          }
+        });
+      });
+    }
+    return list;
+  },
+
+  populateSavedClientsDropdown: function() {
+    const el = document.getElementById("formSavedClientSelect");
+    if (!el) return;
+    let html = '<option value="">-- Pilih Klien / Kelompok Tersimpan (Auto-Isi) --</option>';
+    
+    const indivs = (this.state.savedClients || []).filter(c => c.type === 'individu');
+    const groups = (this.state.savedClients || []).filter(c => c.type === 'kelompok');
+
+    if (indivs.length > 0) {
+      html += '<optgroup label="👤 Klien Individu (KI)">';
+      indivs.forEach(c => {
+        const nextTag = this.calcNextSessionTag(c.lastSessionTag);
+        html += `<option value="${c.id}">${c.name} (${c.targetClass || 'Individu'}) [Seterusnya: ${nextTag}]</option>`;
+      });
+      html += '</optgroup>';
+    }
+
+    if (groups.length > 0) {
+      html += '<optgroup label="👥 Klien Kelompok (KK)">';
+      groups.forEach(c => {
+        const nextTag = this.calcNextSessionTag(c.lastSessionTag);
+        html += `<option value="${c.id}">${c.name} (${c.students.length} murid) [Seterusnya: ${nextTag}]</option>`;
+      });
+      html += '</optgroup>';
+    }
+
+    el.innerHTML = html;
+  },
+
+  calcNextSessionTag: function(lastTag) {
+    if (!lastTag) return "Sesi 1";
+    const num = parseInt(String(lastTag).replace(/[^0-9]/g, ''), 10);
+    if (!num || isNaN(num)) return "Sesi 1";
+    if (num >= 10) return "Sesi 10";
+    return `Sesi ${num + 1}`;
+  },
+
+  applySavedClientToForm: function(clientId) {
+    if (!clientId) return;
+    const client = (this.state.savedClients || []).find(c => c.id === clientId);
+    if (!client) return;
+
+    // 1. Set jenis aktiviti
+    const typeEl = document.getElementById("formType");
+    if (typeEl) {
+      typeEl.value = client.type;
+      this.handleFormTypeChange(client.type);
+    }
+
+    // 2. Set murid terpilih
+    this.state.selectedStudentsInForm = JSON.parse(JSON.stringify(client.students || []));
+    this.renderSelectedStudents();
+
+    // 3. Set kelas sasaran & bilangan klien
+    if (client.targetClass) {
+      const targetEl = document.getElementById("formClassTarget");
+      if (targetEl) targetEl.value = client.targetClass;
+    }
+    const headcountEl = document.getElementById("formHeadcount");
+    if (headcountEl) {
+      headcountEl.value = (client.students && client.students.length > 0) ? client.students.length : (client.type === 'individu' ? 1 : 6);
+    }
+
+    // 4. Set Fokus Perkhidmatan
+    if (client.focus) {
+      const focusEl = document.getElementById("formFocus");
+      if (focusEl) focusEl.value = client.focus;
+    }
+
+    // 5. Kira dan tetapkan Tag Sesi Seterusnya
+    const nextSessionTag = this.calcNextSessionTag(client.lastSessionTag);
+    const sessionTagEl = document.getElementById("formSessionTag");
+    if (sessionTagEl) {
+      sessionTagEl.value = nextSessionTag;
+      this.handleSessionTagChange(nextSessionTag);
+    }
+
+    // 6. Set status klien IPGM (K jika sesi > 1)
+    const clientStatusEl = document.getElementById("formClientStatus");
+    if (clientStatusEl) {
+      clientStatusEl.value = (nextSessionTag === "Sesi 1") ? "B" : "K";
+    }
+
+    // 7. Auto isi tajuk sesi
+    const titleEl = document.getElementById("formTitle");
+    if (titleEl) {
+      if (client.type === 'individu') {
+        const studentName = (client.students && client.students[0]?.name) ? client.students[0].name : client.name;
+        titleEl.value = `KI - ${studentName} (${nextSessionTag})`;
+      } else {
+        titleEl.value = `${client.name} (${nextSessionTag})`;
+      }
+    }
+
+    this.checkFormConflict();
+    this.renderClassSuggestions();
+    this.showToast(`✨ Maklumat ${client.name} & ${nextSessionTag} berjaya dimasukkan!`);
+  },
+
+  saveCurrentFormAsClientProfile: function() {
+    const students = this.state.selectedStudentsInForm;
+    if (!students || students.length === 0) {
+      alert("⚠️ Sila pilih sekurang-kurangnya seorang murid terlebih dahulu sebelum menyimpan profil klien.");
+      return;
+    }
+
+    const type = document.getElementById("formType")?.value || "individu";
+    const isIndiv = (type === "individu" || students.length === 1);
+    const defaultName = isIndiv 
+      ? (students[0].name + " (" + (students[0].className || "") + ")")
+      : (document.getElementById("formTitle")?.value || ("Kelompok " + (students[0].className || "")));
+
+    const profileName = prompt(
+      isIndiv 
+        ? "Masukkan nama pengenalan Klien Individu ini:" 
+        : "Masukkan nama kumpulan Kelompok ini (contoh: Kelompok Sahsiah 4A):",
+      defaultName
+    );
+
+    if (!profileName || !profileName.trim()) return;
+
+    const sessionTag = document.getElementById("formSessionTag")?.value || "Sesi 1";
+    const targetClass = document.getElementById("formClassTarget")?.value || students[0].className || "";
+    const focus = document.getElementById("formFocus")?.value || "sahsiah";
+
+    const newProfile = {
+      id: 'client_' + Date.now(),
+      name: profileName.trim(),
+      type: isIndiv ? 'individu' : 'kelompok',
+      targetClass: targetClass,
+      focus: focus,
+      students: JSON.parse(JSON.stringify(students)),
+      lastSessionTag: sessionTag,
+      sessionCount: 1
+    };
+
+    if (!Array.isArray(this.state.savedClients)) {
+      this.state.savedClients = [];
+    }
+
+    const existingIdx = this.state.savedClients.findIndex(c => c.name.toLowerCase() === newProfile.name.toLowerCase());
+    if (existingIdx >= 0) {
+      this.state.savedClients[existingIdx] = newProfile;
+    } else {
+      this.state.savedClients.unshift(newProfile);
+    }
+
+    this.saveSavedClients();
+    const selectEl = document.getElementById("formSavedClientSelect");
+    if (selectEl) selectEl.value = newProfile.id;
+
+    this.showToast(`💾 Berjaya simpan "${newProfile.name}"! Kini boleh auto-pilih untuk sesi seterusnya.`);
+  },
+
+  handleSessionTagChange: function(tag) {
+    const clientStatusEl = document.getElementById("formClientStatus");
+    if (!clientStatusEl) return;
+    if (tag === "Sesi 1") {
+      clientStatusEl.value = "B"; // Klien Baru
+    } else if (tag && tag.startsWith("Sesi")) {
+      clientStatusEl.value = "K"; // Kes Berulang / Lanjutan
+    }
+  },
+
+  // Mengesan secara 100% automatik sama ada murid ini Klien Baru (Sesi 1 / B) atau Kes Berulang (Sesi 2 - 10 / K)
+  autoDetectClientSessionHistory: function(students, excludeWeek = null, excludeSessionIdx = null) {
+    if (!students || students.length === 0) {
+      return { sessionTag: "Sesi 1", clientStatus: "B", sessionCount: 0, isNew: true };
+    }
+
+    const studentKeys = new Set(
+      students.map(s => String(s.id || s.ic || s.name || s).trim().toUpperCase())
+    );
+    const studentNames = students
+      .map(s => String(s.name || s).trim().toUpperCase())
+      .filter(n => n.length >= 3);
+
+    let previousCount = 0;
+    if (this.state.practicumData && Array.isArray(this.state.practicumData)) {
+      this.state.practicumData.forEach(w => {
+        (w.sessions || []).forEach((s, idx) => {
+          if (excludeWeek !== null && w.weekNum === excludeWeek && idx === excludeSessionIdx) return;
+          if (s.type !== 'individu' && s.type !== 'kelompok') return;
+
+          let match = false;
+          if (s.students && s.students.length > 0) {
+            match = s.students.some(existing => {
+              const key = String(existing.id || existing.ic || existing.name || existing).trim().toUpperCase();
+              return studentKeys.has(key);
+            });
+          } else if (s.title) {
+            const upperTitle = s.title.toUpperCase();
+            match = studentNames.some(name => upperTitle.includes(name));
+          }
+
+          if (match) {
+            previousCount++;
+          }
+        });
+      });
+    }
+
+    if (previousCount === 0) {
+      return {
+        sessionTag: "Sesi 1",
+        clientStatus: "B", // B - Klien Baru (Pertama Kali)
+        sessionCount: 0,
+        isNew: true
+      };
+    } else {
+      const nextNum = Math.min(10, previousCount + 1);
+      return {
+        sessionTag: `Sesi ${nextNum}`,
+        clientStatus: "K", // K - Kes Berulang / Lanjutan
+        sessionCount: previousCount,
+        isNew: false
+      };
+    }
+  },
+
+  applyClientSessionDetection: function(students) {
+    if (!students || students.length === 0) {
+      const noticeEl = document.getElementById("clientAutoDetectNotice");
+      if (noticeEl) {
+        noticeEl.style.display = "none";
+        noticeEl.innerHTML = "";
+      }
+      return;
+    }
+    const editingIdx = this.state.editingSessionIndex !== null ? this.state.editingSessionIndex : null;
+    const editingWeek = this.state.editingWeek !== null ? this.state.editingWeek : this.state.currentWeek;
+    const detection = this.autoDetectClientSessionHistory(students, editingWeek, editingIdx);
+
+    const tagEl = document.getElementById("formSessionTag");
+    if (tagEl) {
+      tagEl.value = detection.sessionTag;
+    }
+    const statusEl = document.getElementById("formClientStatus");
+    if (statusEl) {
+      statusEl.value = detection.clientStatus;
+    }
+
+    // Auto kemaskini tajuk jika bersesuaian
+    const titleEl = document.getElementById("formTitle");
+    const typeEl = document.getElementById("formType");
+    const currentType = typeEl ? typeEl.value : "individu";
+
+    if (titleEl && (!titleEl.value || titleEl.value.startsWith("KI - ") || titleEl.value.startsWith("Kelompok - ") || titleEl.value.startsWith("KI") || titleEl.value.startsWith("Bimbingan"))) {
+      const isIndiv = (currentType === "individu" || students.length === 1);
+      const studentName = students[0].name || students[0];
+      if (isIndiv) {
+        titleEl.value = `KI - ${studentName} (${detection.sessionTag})`;
+      } else {
+        const cls = students[0].className || "";
+        titleEl.value = `Kelompok - Kelas ${cls} (${detection.sessionTag})`;
+      }
+    }
+
+    // Paparkan notis automatik kepada kaunselor
+    const noticeEl = document.getElementById("clientAutoDetectNotice");
+    if (noticeEl) {
+      noticeEl.style.display = "block";
+      if (detection.isNew) {
+        noticeEl.style.background = "#f0fdf4";
+        noticeEl.style.borderColor = "#86efac";
+        noticeEl.style.color = "#166534";
+        noticeEl.innerHTML = `✨ <strong>Auto-Kesan Pintar:</strong> Murid ini dikesan sebagai <strong>KLIEN BARU</strong>. Ditetapkan ke <strong>${detection.sessionTag}</strong> (Status B - Klien Baru) secara automatik tanpa perlu ditekan manual!`;
+      } else {
+        noticeEl.style.background = "#eff6ff";
+        noticeEl.style.borderColor = "#93c5fd";
+        noticeEl.style.color = "#1e40af";
+        noticeEl.innerHTML = `✨ <strong>Auto-Kesan Pintar:</strong> Murid ini dikesan pernah menjalani <strong>${detection.sessionCount} sesi</strong> sebelum ini. Ditetapkan ke <strong>${detection.sessionTag}</strong> (Status K - Kes Berulang) secara automatik!`;
+      }
     }
   },
 
@@ -544,8 +966,9 @@ const App = {
             <div class="session-card type-${s.type} status-card-${status}" onclick="App.openEditSessionModal(${this.state.currentWeek}, '${day}', ${originalIdx})">
               <div class="session-card-header">
                 <span class="session-time">⏱️ ${s.timeStart} - ${s.timeEnd}</span>
-                <div style="display: flex; gap: 4px; align-items: center;">
+                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
                   ${statusBadge}
+                  ${s.sessionTag ? `<span class="badge badge-session-tag">🏷️ ${s.sessionTag}</span>` : ''}
                   <span class="badge badge-${s.type}">${this.getTypeLabel(s.type)}</span>
                 </div>
               </div>
@@ -578,6 +1001,9 @@ const App = {
 
               <!-- Tindakan Pantas Kad Sesi -->
               <div class="session-actions">
+                ${(s.type === 'individu' || s.type === 'kelompok') ? `
+                  <button class="icon-btn btn-followup" style="background: #eff6ff; color: #1d4ed8; font-weight: 800; border: 1px solid #bfdbfe;" title="⚡ Cadang Sesi Susulan Automatik (Dengan Persetujuan Kaunselor)" onclick="event.stopPropagation(); App.suggestFollowUpSession(${this.state.currentWeek}, '${day}', ${originalIdx})">⚡</button>
+                ` : ''}
                 <button class="icon-btn btn-client-pick" title="Pilih / Tukar Klien (Senarai 422 Murid)" onclick="event.stopPropagation(); App.openQuickClientPicker(${this.state.currentWeek}, '${day}', ${originalIdx})">👥</button>
                 <button class="icon-btn btn-slip" title="Cetak Slip Panggilan Murid" onclick="event.stopPropagation(); App.printSessionSlip(${this.state.currentWeek}, '${day}', ${originalIdx})">🎫</button>
                 <button class="icon-btn btn-reschedule" title="Anjak / Pindahkan Sesi" onclick="event.stopPropagation(); App.openRescheduleModal(${this.state.currentWeek}, '${day}', ${originalIdx})">➡️</button>
@@ -661,6 +1087,566 @@ const App = {
     this.savePracticumData();
     this.renderPracticumTable();
     this.renderPracticumHoursDashboard();
+
+    // AUTO-CADANG SESI SUSULAN DENGAN PERSETUJUAN KAUNSELOR
+    if (session.status === 'selesai' && (session.type === 'individu' || session.type === 'kelompok') && weekNum < 10) {
+      setTimeout(() => {
+        this.suggestFollowUpSession(weekNum, day, sessionIdx);
+      }, 350);
+    }
+  },
+
+  // =========================================================
+  // ENJIN CADANGAN SESI SUSULAN PINTAR 100% BEBAS PERTINDIHAN
+  // =========================================================
+  normalizeClassName: function(rawClass) {
+    if (!rawClass) return "";
+    const clean = String(rawClass).toUpperCase().trim();
+    if (typeof CLASS_SCHEDULES !== "undefined" && CLASS_SCHEDULES[clean]) {
+      return clean;
+    }
+    const map = {
+      "1A": "1 ARIF", "1B": "1 BESTARI",
+      "2A": "2 ARIF", "2B": "2 BESTARI",
+      "3A": "3 ARIF", "3B": "3 BESTARI",
+      "4A": "4 ARIF", "4B": "4 BESTARI",
+      "5A": "5 ARIF", "5B": "5 BESTARI",
+      "6A": "6 ARIF", "6B": "6 BESTARI"
+    };
+    for (const [k, v] of Object.entries(map)) {
+      if (clean === k || clean.includes(k) || clean.replace(/\s+/g, '') === k) return v;
+    }
+    return clean;
+  },
+
+  // Cari slot-slot calon yang 100% BEBAS daripada pertindihan UBK, cuti, rehat & mengutamakan waktu bukan teras
+  findSmartFollowUpSlots: function(targetWeekNum, preferredDay, preferredStart, preferredEnd, rawClassName, sessionType = 'individu') {
+    const targetWeekData = this.state.practicumData.find(w => w.weekNum === targetWeekNum);
+    if (!targetWeekData) return [];
+
+    const normClass = this.normalizeClassName(rawClassName);
+    const classData = (typeof CLASS_SCHEDULES !== "undefined" && normClass) ? CLASS_SCHEDULES[normClass] : null;
+    const isTahap1 = classData ? (classData.tahap === 1) : false;
+    const recessStart = isTahap1 ? 580 : 610; // 09:40 atau 10:10
+    const recessEnd   = isTahap1 ? 610 : 640; // 10:10 atau 10:40
+
+    // Calon slot masa standard sekolah yang selaras PdPC SK Tampasuk 1
+    const baseCandidateTimes = [
+      { start: "07.10", end: "08.10" },
+      { start: "07.40", end: "08.40" },
+      { start: "08.10", end: "09.10" },
+      { start: "08.40", end: "09.40" },
+      { start: "10.40", end: "11.40" },
+      { start: "11.10", end: "12.10" },
+      { start: "11.40", end: "12.40" }
+    ];
+
+    if (preferredStart && preferredEnd) {
+      if (!baseCandidateTimes.some(c => c.start === preferredStart && c.end === preferredEnd)) {
+        baseCandidateTimes.unshift({ start: preferredStart, end: preferredEnd });
+      }
+    }
+
+    const daysList = ["ISNIN", "SELASA", "RABU", "KHAMIS", "JUMAAT"];
+    const candidates = [];
+
+    daysList.forEach(d => {
+      // 1. Semak jika hari cuti umum / cuti peristiwa
+      const daySessions = (targetWeekData.sessions || []).filter(s => s.day === d);
+      const isFullDayHoliday = daySessions.some(s => s.type === 'cuti' || (s.title && s.title.toUpperCase().includes('CUTI')));
+      if (isFullDayHoliday) return; // Langkau hari cuti!
+
+      baseCandidateTimes.forEach(cand => {
+        const cStartMin = this.timeToMin(cand.start);
+        const cEndMin   = this.timeToMin(cand.end);
+
+        // a) Elak waktu luar persekolahan
+        if (cStartMin < 430 || cEndMin > 760) return;
+
+        // b) Elak waktu perhimpunan rasmi Isnin (07.00 - 07.40)
+        if (d === "ISNIN" && cStartMin < 460 && cEndMin > 420) return;
+
+        // c) Elak waktu rehat murid
+        if (cStartMin < recessEnd && cEndMin > recessStart) return;
+
+        // d) SEMAK PERTINDIHAN JADUAL UBK (ZERO CLASH)
+        const hasUbkClash = daySessions.some(os => {
+          if (os.type === 'cuti') return true;
+          const osStart = this.timeToMin(os.timeStart);
+          const osEnd   = this.timeToMin(os.timeEnd);
+          return (cStartMin < osEnd && cEndMin > osStart);
+        });
+
+        if (hasUbkClash) return; // Gugurkan jika bertindih dengan sesi UBK!
+
+        // e) ANALISIS PINTAR SUBJEK KELAS KLIEN (Bukan Teras vs Teras)
+        let coreConflict = null;
+        let nonCoreSubject = null;
+        let classSchedNote = "";
+        let score = 100;
+
+        if (classData && classData.schedule && classData.schedule[d]) {
+          const clsDaySched = classData.schedule[d];
+          const coreCodes = ["BM", "BI", "M3", "MAT", "SN"];
+          const nonCoreCodes = ["PSV", "MZ", "PJ", "PK", "RBT", "SEJ", "TASMEK", "BA/BKD", "BA", "BKD", "PM", "PI/PM", "PI"];
+
+          const overlappingPeriods = clsDaySched.filter(p => {
+            const [pStartStr, pEndStr] = (p.time || "").split(" - ");
+            const pStart = this.timeToMin(pStartStr);
+            const pEnd   = this.timeToMin(pEndStr || pStartStr);
+            return (cStartMin < pEnd && cEndMin > pStart);
+          });
+
+          // Semak jika waktu rehat dalam jadual kelas
+          if (overlappingPeriods.some(p => p.isBreak || p.code === "REHAT")) return;
+
+          // Semak subjek teras akademik
+          const coreP = overlappingPeriods.find(p => p.core || coreCodes.includes(p.code));
+          if (coreP) {
+            coreConflict = coreP;
+            score -= 60; // Penalti: murid akan terlepas subjek teras
+            classSchedNote = `Subjek Teras (${coreP.code})`;
+          } else {
+            // Semak subjek bukan teras (SANGAT DIGALAKKAN OLEH IPGM)
+            const nonCoreP = overlappingPeriods.find(p => nonCoreCodes.includes(p.code));
+            if (nonCoreP) {
+              nonCoreSubject = nonCoreP;
+              score += 40; // Bonus besar untuk slot paling selamat
+              classSchedNote = `Waktu ${nonCoreP.name} (${nonCoreP.code}) • Bebas Teras`;
+            } else {
+              score += 20;
+              classSchedNote = `Bebas Subjek Teras`;
+            }
+          }
+        } else {
+          classSchedNote = `Waktu Lapang UBK`;
+        }
+
+        // f) Bonus Kesinambungan Waktu (Hari & jam yang sama jika bebas)
+        if (d === preferredDay && cand.start === preferredStart && cand.end === preferredEnd) {
+          score += 30;
+        } else if (d === preferredDay) {
+          score += 15;
+        }
+
+        // g) Jumaat petang penalti kecil
+        if (d === "JUMAAT" && cEndMin > 690) {
+          score -= 15;
+        }
+
+        candidates.push({
+          day: d,
+          timeStart: cand.start,
+          timeEnd: cand.end,
+          score: score,
+          coreConflict: coreConflict,
+          nonCoreSubject: nonCoreSubject,
+          classSchedNote: classSchedNote
+        });
+      });
+    });
+
+    // Susun mengikut markah tertinggi
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates;
+  },
+
+  // Semakan keselamatan pertindihan untuk sebarang slot khusus
+  checkSpecificSlotConflict: function(targetWeekNum, day, timeStart, timeEnd, className = "") {
+    const targetWeekData = this.state.practicumData.find(w => w.weekNum === targetWeekNum);
+    if (!targetWeekData) return { hasClash: false, message: "" };
+
+    const sStart = this.timeToMin(timeStart);
+    const sEnd   = this.timeToMin(timeEnd);
+
+    if (!timeStart || !timeEnd || sEnd <= sStart) {
+      return { hasClash: true, isError: true, message: `Masa tamat (${timeEnd}) mestilah lebih lewat daripada masa mula (${timeStart}).` };
+    }
+
+    // 1. Semak Hari Cuti
+    const isCuti = (targetWeekData.sessions || []).some(s => s.day === day && (s.type === 'cuti' || (s.title && s.title.toUpperCase().includes('CUTI'))));
+    if (isCuti) {
+      return { hasClash: true, isError: true, message: `Hari ${day} dalam Minggu ${targetWeekNum} adalah HARI CUTI / PELEPASAN AM.` };
+    }
+
+    // 2. Semak Pertindihan UBK Sendiri
+    const clashingUbk = (targetWeekData.sessions || []).find(os => {
+      if (os.day !== day) return false;
+      const osStart = this.timeToMin(os.timeStart);
+      const osEnd   = this.timeToMin(os.timeEnd);
+      return (sStart < osEnd && sEnd > osStart);
+    });
+
+    if (clashingUbk) {
+      return { 
+        hasClash: true, 
+        isError: true, 
+        message: `Bertembung dengan sesi UBK lain: "${clashingUbk.title}" (${clashingUbk.timeStart} - ${clashingUbk.timeEnd}).` 
+      };
+    }
+
+    // 3. Semak Perhimpunan Isnin
+    if (day === "ISNIN" && sStart < 460 && sEnd > 420) {
+      return { hasClash: true, isError: true, message: `Bertembung dengan waktu Perhimpunan Rasmi Sekolah (07.00 - 07.40).` };
+    }
+
+    // 4. Semak Waktu Rehat & Subjek Teras Murid
+    const normClass = this.normalizeClassName(className);
+    if (normClass && typeof CLASS_SCHEDULES !== "undefined" && CLASS_SCHEDULES[normClass]) {
+      const cls = CLASS_SCHEDULES[normClass];
+      const clsSched = cls.schedule[day] || [];
+      const coreCodes = ["BM", "BI", "M3", "MAT", "SN"];
+
+      const overlappingPeriods = clsSched.filter(p => {
+        const [pStartStr, pEndStr] = (p.time || "").split(" - ");
+        const pStart = this.timeToMin(pStartStr);
+        const pEnd   = this.timeToMin(pEndStr || pStartStr);
+        return (sStart < pEnd && sEnd > pStart);
+      });
+
+      if (overlappingPeriods.some(p => p.isBreak || p.code === "REHAT")) {
+        return { hasClash: true, isError: true, message: `Bertembung dengan WAKTU REHAT murid (${cls.rehatTime || '09.40 - 10.40'}). Rehat adalah hak murid.` };
+      }
+
+      const clashingCore = overlappingPeriods.filter(p => p.core || coreCodes.includes(p.code));
+      if (clashingCore.length > 0) {
+        return {
+          hasClash: false,
+          isWarning: true,
+          message: `Pertindihan Subjek Teras: Kelas ${normClass} sedang belajar (${clashingCore.map(c => c.code + ' - ' + c.name).join(', ')}). Murid mungkin ketinggalan silibus.`
+        };
+      }
+
+      const nonCore = overlappingPeriods.filter(p => !p.core && !p.isBreak);
+      if (nonCore.length > 0) {
+        return {
+          hasClash: false,
+          isOptimal: true,
+          message: `Slot Terbaik: Kelas ${normClass} sedang waktu bukan teras (${nonCore.map(c => c.code).join(', ')}). Bebas subjek peperiksaan!`
+        };
+      }
+    }
+
+    return { hasClash: false, isOptimal: true, message: `Disahkan 100% bebas pertindihan jadual UBK.` };
+  },
+
+  handleFollowUpPresetChange: function(val, targetWeekNum, normClass) {
+    if (!val || val === "custom") return;
+    const parts = val.split("|");
+    if (parts.length === 3) {
+      const dayEl = document.getElementById("followUpDay");
+      const startEl = document.getElementById("followUpTimeStart");
+      const endEl = document.getElementById("followUpTimeEnd");
+      if (dayEl) dayEl.value = parts[0];
+      if (startEl) startEl.value = parts[1];
+      if (endEl) endEl.value = parts[2];
+      this.liveValidateFollowUpSlot(targetWeekNum, normClass);
+    }
+  },
+
+  liveValidateFollowUpSlot: function(targetWeekNum, className = "") {
+    const day = document.getElementById("followUpDay")?.value || "ISNIN";
+    const start = document.getElementById("followUpTimeStart")?.value?.trim() || "";
+    const end = document.getElementById("followUpTimeEnd")?.value?.trim() || "";
+    const statusBox = document.getElementById("followUpLiveStatus");
+    const btnConfirm = document.getElementById("btnConfirmAutoFollowUp");
+
+    if (!statusBox) return;
+
+    if (!start || !end) {
+      statusBox.innerHTML = `<div style="font-size:0.75rem; color:#64748b;">Sila masukkan masa mula dan tamat yang sah.</div>`;
+      if (btnConfirm) btnConfirm.disabled = true;
+      return;
+    }
+
+    const check = this.checkSpecificSlotConflict(targetWeekNum, day, start, end, className);
+
+    if (check.hasClash) {
+      statusBox.innerHTML = `
+        <div style="background:#fee2e2; color:#991b1b; border:1.5px solid #f87171; padding:6px 10px; border-radius:6px; font-size:0.78rem; font-weight:700;">
+          ❌ PERTINDIHAN: ${check.message}
+        </div>
+      `;
+      if (btnConfirm) {
+        btnConfirm.disabled = true;
+        btnConfirm.style.opacity = "0.45";
+        btnConfirm.style.cursor = "not-allowed";
+      }
+    } else if (check.isWarning) {
+      statusBox.innerHTML = `
+        <div style="background:#fffbeb; color:#92400e; border:1.5px solid #fcd34d; padding:6px 10px; border-radius:6px; font-size:0.78rem; font-weight:600;">
+          ⚠️ PERINGATAN: ${check.message}
+        </div>
+      `;
+      if (btnConfirm) {
+        btnConfirm.disabled = false;
+        btnConfirm.style.opacity = "1";
+        btnConfirm.style.cursor = "pointer";
+      }
+    } else {
+      statusBox.innerHTML = `
+        <div style="background:#f0fdf4; color:#15803d; border:1.5px solid #86efac; padding:6px 10px; border-radius:6px; font-size:0.78rem; font-weight:700;">
+          🛡️ PINTAR &amp; BEBAS PERTINDIHAN: ${check.message}
+        </div>
+      `;
+      if (btnConfirm) {
+        btnConfirm.disabled = false;
+        btnConfirm.style.opacity = "1";
+        btnConfirm.style.cursor = "pointer";
+      }
+    }
+  },
+
+  suggestFollowUpSession: function(weekNum, day, sessionIdx) {
+    if (typeof CloudSync !== "undefined" && CloudSync.state.userRole === "viewer") {
+      this.showToast("👁️ Mod Paparan Awam: Hanya Kaunselor dibenarkan menjadualkan sesi.", null, 3500);
+      return;
+    }
+    const weekData = this.state.practicumData.find(w => w.weekNum === weekNum);
+    if (!weekData) return;
+    const session = weekData.sessions[sessionIdx];
+    if (!session) return;
+
+    if (weekNum >= 10) {
+      alert("ℹ️ Ini adalah Minggu 10 (Minggu Akhir Praktikum). Tiada minggu praktikum seterusnya untuk sesi susulan.");
+      return;
+    }
+
+    const targetWeekNum = weekNum + 1;
+    const targetWeekData = this.state.practicumData.find(w => w.weekNum === targetWeekNum);
+    if (!targetWeekData) {
+      alert(`⚠️ Data Minggu ${targetWeekNum} tidak ditemui.`);
+      return;
+    }
+
+    // Kira nombor sesi seterusnya
+    let nextTag = "Sesi 2";
+    if (session.sessionTag) {
+      nextTag = this.calcNextSessionTag(session.sessionTag);
+    } else {
+      const detect = this.autoDetectClientSessionHistory(session.students || []);
+      nextTag = this.calcNextSessionTag(detect.sessionTag);
+    }
+
+    // Tentukan Klien & Kelas
+    const isIndiv = (session.type === 'individu' || (session.students && session.students.length === 1));
+    const clientName = (session.students && session.students.length > 0)
+      ? (isIndiv ? session.students[0].name : `${session.students.length} Orang Murid (${session.classTarget || ''})`)
+      : (session.title || 'Klien');
+    const rawClass = session.classTarget || (session.students && session.students[0] ? session.students[0].className : '');
+    const normClass = this.normalizeClassName(rawClass);
+
+    // CARI SLOT PINTAR BEBAS PERTINDIHAN DENGAN ENJIN PINTAR
+    const candidateSlots = this.findSmartFollowUpSlots(
+      targetWeekNum,
+      day,
+      session.timeStart,
+      session.timeEnd,
+      normClass,
+      session.type
+    );
+
+    let bestSlot = null;
+    if (candidateSlots.length > 0) {
+      bestSlot = candidateSlots[0];
+    } else {
+      bestSlot = {
+        day: day,
+        timeStart: session.timeStart || "08.40",
+        timeEnd: session.timeEnd || "09.40",
+        score: 50,
+        classSchedNote: "Sila semak jadual minggu tersebut",
+        coreConflict: null,
+        nonCoreSubject: null
+      };
+    }
+
+    // Sediakan Modal Cadangan
+    const modalEl = document.getElementById("autoFollowUpModal");
+    const contentEl = document.getElementById("followUpModalContent");
+    if (!modalEl || !contentEl) {
+      const proceed = confirm(`📋 CADANGAN SESI SUSULAN PINTAR (BEBAS PERTINDIHAN):\n\nKlien: ${clientName}\nCadangan Sesi: ${nextTag} (Status K - Kes Berulang)\nCadangan Slot: Minggu ${targetWeekNum} (${bestSlot.day}, ${bestSlot.timeStart} - ${bestSlot.timeEnd})\nCatatan: ${bestSlot.classSchedNote}\n\nAdakah anda bersetuju untuk memasukkan sesi susulan ini ke dalam jadual?`);
+      if (proceed) {
+        this.confirmAutoFollowUp(targetWeekNum, bestSlot.day, bestSlot.timeStart, bestSlot.timeEnd, session, nextTag);
+      }
+      return;
+    }
+
+    const daysList = ["ISNIN", "SELASA", "RABU", "KHAMIS", "JUMAAT"];
+    
+    // Bina pilihan slot pintar untuk dropdown preset
+    let slotOptionsHtml = "";
+    candidateSlots.slice(0, 6).forEach((cs, idx) => {
+      const label = `${idx === 0 ? '⭐ [DISYORKAN] ' : '✓ '}${cs.day}, ${cs.timeStart} - ${cs.timeEnd} (${cs.classSchedNote})`;
+      slotOptionsHtml += `<option value="${cs.day}|${cs.timeStart}|${cs.timeEnd}" ${idx === 0 ? 'selected' : ''}>${label}</option>`;
+    });
+
+    contentEl.innerHTML = `
+      <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Profil Klien:</span>
+            <div style="font-size: 1.05rem; font-weight: 800; color: #1e3a8a;">👤 ${clientName}</div>
+            <div style="font-size: 0.8rem; color: #475569;">🏫 Kelas: <strong>${normClass || rawClass || 'Umum'}</strong> • Jenis: <strong>${this.getTypeLabel(session.type)}</strong></div>
+          </div>
+          <div style="text-align: right;">
+            <span class="badge badge-session-tag" style="font-size: 0.82rem; padding: 4px 8px;">🏷️ ${nextTag}</span>
+            <div style="font-size: 0.72rem; color: #059669; font-weight: 700; margin-top: 3px;">Status: K (Kes Berulang)</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+        <div style="font-weight: 800; color: #166534; font-size: 0.88rem; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span>🛡️</span> Slot Pintar Disyorkan (Minggu ${targetWeekNum}):
+          </span>
+          <span style="font-size: 0.72rem; background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 12px; font-weight: 700;">
+            ✓ Sifar Pertindihan
+          </span>
+        </div>
+
+        <!-- Pilihan Slot Pintar Terpilih -->
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 0.74rem; font-weight: 700; color: #166534; display: block; margin-bottom: 3px;">
+            Pilih Slot Disahkan Bebas Pertindihan:
+          </label>
+          <select id="followUpSlotPreset" class="form-control" style="font-size: 0.82rem; font-weight: 700; border-color: #86efac; background: white;" onchange="App.handleFollowUpPresetChange(this.value, ${targetWeekNum}, '${normClass}')">
+            ${slotOptionsHtml}
+            <option value="custom">✏️ Waktu Tersuai / Pilihan Sendiri...</option>
+          </select>
+        </div>
+
+        <!-- Pilihan Hari & Masa -->
+        <div style="display: grid; grid-template-columns: 1.1fr 1fr; gap: 8px;">
+          <div>
+            <label style="font-size: 0.75rem; font-weight: 700; color: #334155; display: block; margin-bottom: 2px;">Hari:</label>
+            <select id="followUpDay" class="form-control" style="font-size: 0.85rem; padding: 6px; font-weight: 700;" onchange="App.liveValidateFollowUpSlot(${targetWeekNum}, '${normClass}')">
+              ${daysList.map(d => `<option value="${d}" ${d === bestSlot.day ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; font-weight: 700; color: #334155; display: block; margin-bottom: 2px;">Masa (Mula - Tamat):</label>
+            <div style="display: flex; gap: 4px;">
+              <input type="text" id="followUpTimeStart" class="form-control" value="${bestSlot.timeStart}" style="font-size: 0.85rem; padding: 6px; text-align: center; font-weight: 700;" oninput="App.liveValidateFollowUpSlot(${targetWeekNum}, '${normClass}')">
+              <span style="align-self: center; font-weight: 800;">-</span>
+              <input type="text" id="followUpTimeEnd" class="form-control" value="${bestSlot.timeEnd}" style="font-size: 0.85rem; padding: 6px; text-align: center; font-weight: 700;" oninput="App.liveValidateFollowUpSlot(${targetWeekNum}, '${normClass}')">
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Semakan Masa Nyata -->
+        <div id="followUpLiveStatus" style="margin-top: 8px;">
+          <!-- Auto-populated -->
+        </div>
+      </div>
+
+      <div style="font-size: 0.78rem; color: #475569; line-height: 1.4;">
+        💡 <em>Enjin pintar secara automatik mengelakkan cuti sekolah, waktu rehat murid, perhimpunan rasmi, dan mengutamakan subjek bukan teras agar murid tidak terjejas akademik.</em>
+      </div>
+    `;
+
+    const btnConfirm = document.getElementById("btnConfirmAutoFollowUp");
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.style.opacity = "1";
+      btnConfirm.style.cursor = "pointer";
+      btnConfirm.onclick = () => {
+        const chosenDay = document.getElementById("followUpDay")?.value || bestSlot.day;
+        const chosenStart = document.getElementById("followUpTimeStart")?.value?.trim() || bestSlot.timeStart;
+        const chosenEnd = document.getElementById("followUpTimeEnd")?.value?.trim() || bestSlot.timeEnd;
+
+        // Semakan pengesahan akhir
+        const validation = this.checkSpecificSlotConflict(targetWeekNum, chosenDay, chosenStart, chosenEnd, normClass);
+        if (validation.hasClash) {
+          alert(`⚠️ PERTINDIHAN DIKESAN:\n${validation.message}\n\nSila pilih slot waktu lain yang bebas.`);
+          return;
+        }
+
+        this.confirmAutoFollowUp(targetWeekNum, chosenDay, chosenStart, chosenEnd, session, nextTag);
+      };
+    }
+
+    modalEl.classList.add("active");
+    this.liveValidateFollowUpSlot(targetWeekNum, normClass);
+  },
+
+  closeAutoFollowUpModal: function() {
+    const modalEl = document.getElementById("autoFollowUpModal");
+    if (modalEl) modalEl.classList.remove("active");
+  },
+
+  confirmAutoFollowUp: function(targetWeekNum, day, timeStart, timeEnd, sourceSession, nextTag) {
+    const targetWeekData = this.state.practicumData.find(w => w.weekNum === targetWeekNum);
+    if (!targetWeekData) {
+      alert(`⚠️ Ralat: Data Minggu ${targetWeekNum} tidak ditemui.`);
+      return;
+    }
+
+    const normClass = this.normalizeClassName(sourceSession.classTarget || (sourceSession.students && sourceSession.students[0] ? sourceSession.students[0].className : ''));
+    
+    // Semakan keselamatan akhir
+    const validation = this.checkSpecificSlotConflict(targetWeekNum, day, timeStart, timeEnd, normClass);
+    if (validation.hasClash) {
+      alert(`⚠️ PERTINDIHAN DIKESAN:\n${validation.message}\n\nSila pilih slot waktu lain.`);
+      return;
+    }
+
+    if (!targetWeekData.sessions) targetWeekData.sessions = [];
+
+    const isIndiv = (sourceSession.type === 'individu' || (sourceSession.students && sourceSession.students.length === 1));
+    const studentName = (sourceSession.students && sourceSession.students[0]) ? sourceSession.students[0].name : '';
+    
+    let newTitle = '';
+    if (isIndiv && studentName) {
+      newTitle = `KI - ${studentName} (${nextTag})`;
+    } else if (sourceSession.type === 'kelompok') {
+      newTitle = `Kelompok - Kelas ${sourceSession.classTarget || ''} (${nextTag})`;
+    } else {
+      newTitle = `${sourceSession.title || 'Sesi Kaunseling'} (${nextTag})`;
+    }
+
+    const newSession = {
+      day: day,
+      timeStart: timeStart,
+      timeEnd: timeEnd,
+      type: sourceSession.type,
+      title: newTitle,
+      classTarget: sourceSession.classTarget || (sourceSession.students && sourceSession.students[0] ? sourceSession.students[0].className : ''),
+      status: "belum",
+      notes: `Sesi Susulan (${nextTag}) dicadangkan automatik daripada sesi sebelumnya.`,
+      headcount: sourceSession.headcount || (sourceSession.students ? sourceSession.students.length : 1),
+      students: JSON.parse(JSON.stringify(sourceSession.students || [])),
+      focus: sourceSession.focus || "sahsiah",
+      clientStatus: "K", // Status K - Kes Berulang
+      arrivalWay: "temujanji", // Temujanji Kaunselor
+      targetAudience: sourceSession.targetAudience || "pelajar",
+      sessionTag: nextTag
+    };
+
+    targetWeekData.sessions.push(newSession);
+
+    // Kemaskini profil tersimpan jika wujud
+    if (Array.isArray(this.state.savedClients) && sourceSession.students && sourceSession.students.length > 0) {
+      const prof = this.state.savedClients.find(c => {
+        if (!c.students || c.students.length !== sourceSession.students.length) return false;
+        return c.students.every(cs => sourceSession.students.some(s => (s.id && s.id === cs.id) || (s.name && s.name === cs.name)));
+      });
+      if (prof) {
+        prof.lastSessionTag = nextTag;
+        this.saveSavedClients();
+      }
+    }
+
+    this.savePracticumData();
+    this.closeAutoFollowUpModal();
+
+    this.showToast(`🎉 Sesi Susulan (${nextTag}) berjaya dimasukkan ke Minggu ${targetWeekNum} (${day}, ${timeStart} - ${timeEnd})!`, null, 4000);
+    
+    if (this.state.currentWeek === targetWeekNum) {
+      this.renderPracticumTable();
+      this.renderPracticumHoursDashboard();
+    }
   },
 
   // =========================================================
@@ -1923,7 +2909,7 @@ const App = {
     if (dropdown) dropdown.classList.remove("active");
 
     const endpointInput = document.getElementById("backendEndpointInput");
-    const storedEndpoint = localStorage.getItem("ubk_cloud_endpoint") || "";
+    const storedEndpoint = localStorage.getItem("ubk_cloud_endpoint") || (typeof CloudSync !== "undefined" ? CloudSync.config.defaultBackendUrl : "") || "https://script.google.com/macros/s/AKfycbz4hFjdKfO9OfxaKL-H-xuloWYeyrkeb3ZT24IYuruUMmJ1I2Vu2c9uPEPKOUjFpC8RdA/exec";
     if (endpointInput) endpointInput.value = storedEndpoint;
 
     // Kemas kini status badge backend
@@ -2197,16 +3183,8 @@ const App = {
       headcountEl.value = this.state.selectedStudentsInForm.length;
     }
 
-    // Auto suggest title if relevant
-    const titleEl = document.getElementById("formTitle");
-    const type = document.getElementById("formType")?.value || "bimbingan";
-    if (titleEl && (!titleEl.value || titleEl.value.startsWith("Bimbingan - ") || titleEl.value.startsWith("Kelompok - ") || titleEl.value.startsWith("Bimbingan Kelas "))) {
-      if (type === "kelompok") {
-        titleEl.value = `Kelompok - Kelas ${students[0].className}`;
-      } else {
-        titleEl.value = `Bimbingan Kelas ${students[0].className}`;
-      }
-    }
+    // Auto-Kesan Status Murid & Tag Sesi Secara Pintar
+    this.applyClientSessionDetection(this.state.selectedStudentsInForm);
 
     this.showToast(`✅ Berjaya memasukkan semua ${addedCount} orang murid kelas ${students[0].className}!`);
     const resultsContainer = document.getElementById("studentSearchResults");
@@ -2279,16 +3257,8 @@ const App = {
       headcountEl.value = this.state.selectedStudentsInForm.length;
     }
 
-    // Auto-cadang tajuk sesi
-    const titleEl = document.getElementById("formTitle");
-    if (titleEl && (!titleEl.value || titleEl.value.startsWith("KI - ") || titleEl.value.startsWith("Kelompok - "))) {
-      const type = document.getElementById("formType")?.value || "individu";
-      if (type === "individu") {
-        titleEl.value = `KI - ${student.name}`;
-      } else if (type === "kelompok") {
-        titleEl.value = `Kelompok - Kelas ${student.className}`;
-      }
-    }
+    // Auto-Kesan Status Murid & Tag Sesi Secara Pintar (100% Automatik)
+    this.applyClientSessionDetection(this.state.selectedStudentsInForm);
 
     // Kosongkan dan sembunyikan kotak carian
     const searchEl = document.getElementById("formStudentSearch");
@@ -2309,6 +3279,17 @@ const App = {
       if (headcountEl) {
         headcountEl.value = Math.max(1, this.state.selectedStudentsInForm.length);
       }
+
+      if (this.state.selectedStudentsInForm.length > 0) {
+        this.applyClientSessionDetection(this.state.selectedStudentsInForm);
+      } else {
+        const noticeEl = document.getElementById("clientAutoDetectNotice");
+        if (noticeEl) {
+          noticeEl.style.display = "none";
+          noticeEl.innerHTML = "";
+        }
+      }
+
       this.checkFormConflict();
       this.renderClassSuggestions();
     }
@@ -2540,8 +3521,20 @@ const App = {
     const resEl = document.getElementById("studentSearchResults");
     if (resEl) resEl.style.display = "none";
 
+    // Reset Siri Sesi & Dropdown Klien Tersimpan
+    const sessionTagEl = document.getElementById("formSessionTag");
+    if (sessionTagEl) sessionTagEl.value = "";
+    this.populateSavedClientsDropdown();
+    const savedClientEl = document.getElementById("formSavedClientSelect");
+    if (savedClientEl) savedClientEl.value = "";
+
     const alertBox = document.getElementById("formConflictAlert");
     if (alertBox) alertBox.style.display = "none";
+    const noticeEl = document.getElementById("clientAutoDetectNotice");
+    if (noticeEl) {
+      noticeEl.style.display = "none";
+      noticeEl.innerHTML = "";
+    }
 
     document.getElementById("sessionModal").classList.add("active");
     this.updateFormSaveBtnColor();
@@ -2588,13 +3581,28 @@ const App = {
     const classFilterEl = document.getElementById("formStudentClassFilter");
     if (classFilterEl) classFilterEl.value = "";
 
+    // Muat Siri Sesi
+    const sessionTagEl = document.getElementById("formSessionTag");
+    if (sessionTagEl) sessionTagEl.value = session.sessionTag || "";
+    this.populateSavedClientsDropdown();
+    const savedClientEl = document.getElementById("formSavedClientSelect");
+    if (savedClientEl) savedClientEl.value = "";
+
     // Muat murid terpilih
     this.state.selectedStudentsInForm = session.students ? JSON.parse(JSON.stringify(session.students)) : [];
     this.renderSelectedStudents();
     const searchEl = document.getElementById("formStudentSearch");
     if (searchEl) searchEl.value = "";
     const resEl = document.getElementById("studentSearchResults");
-    if (resEl) resEl.style.display = "none";
+    const noticeEl = document.getElementById("clientAutoDetectNotice");
+    if (noticeEl) {
+      if (this.state.selectedStudentsInForm && this.state.selectedStudentsInForm.length > 0) {
+        this.applyClientSessionDetection(this.state.selectedStudentsInForm);
+      } else {
+        noticeEl.style.display = "none";
+        noticeEl.innerHTML = "";
+      }
+    }
 
     document.getElementById("sessionModal").classList.add("active");
     this.updateFormSaveBtnColor();
@@ -2744,6 +3752,7 @@ const App = {
     const clientStatus   = document.getElementById("formClientStatus")?.value || "B";
     const arrivalWay     = document.getElementById("formArrivalWay")?.value || "sukarela";
     const targetAudience = document.getElementById("formTargetAudience")?.value || "pelajar";
+    const sessionTag     = document.getElementById("formSessionTag")?.value || "";
 
     const sessionObj = { 
       day, 
@@ -2759,8 +3768,21 @@ const App = {
       focus,
       clientStatus,
       arrivalWay,
-      targetAudience
+      targetAudience,
+      sessionTag
     };
+
+    // Kemaskini siri sesi terakhir bagi profil klien tersimpan (jika sepadan)
+    if (sessionTag && students.length > 0 && Array.isArray(this.state.savedClients)) {
+      const matchedProfile = this.state.savedClients.find(c => {
+        if (!c.students || c.students.length !== students.length) return false;
+        return c.students.every(cs => students.some(s => (s.id && s.id === cs.id) || (s.name && s.name === cs.name)));
+      });
+      if (matchedProfile) {
+        matchedProfile.lastSessionTag = sessionTag;
+        this.saveSavedClients();
+      }
+    }
 
     if (sessionIdx === -1) {
       weekData.sessions.push(sessionObj);
@@ -5338,17 +6360,23 @@ const App = {
       session.classTarget = selected[0].className;
     }
 
-    // Auto-cadang tajuk jika individu dan masih kod asas (contoh: KI01)
-    if (session.type === 'individu' && selected.length === 1) {
-      if (!session.title || session.title.match(/^KI\d*$/i) || session.title === 'KI') {
-        session.title = `KI - ${selected[0].name}`;
+    // Auto-kesan status klien & nombor sesi secara 100% automatik
+    if (session.type === 'individu' || session.type === 'kelompok') {
+      const detection = this.autoDetectClientSessionHistory(selected, target.weekNum, target.sessionIdx);
+      session.sessionTag = detection.sessionTag;
+      session.clientStatus = detection.clientStatus;
+
+      if (session.type === 'individu' && selected.length === 1) {
+        session.title = `KI - ${selected[0].name} (${detection.sessionTag})`;
+      } else if (session.type === 'kelompok' && selected.length > 0) {
+        session.title = `Kelompok - Kelas ${selected[0].className} (${detection.sessionTag})`;
       }
     }
 
     this.savePracticumData();
     this.render();
     this.closeQuickClientPicker();
-    this.showToast(`✅ Klien berjaya dikemaskini untuk sesi "${session.title}" (${selected.length} orang murid)!`);
+    this.showToast(`✅ Klien berjaya dikemaskini: "${session.title}" [${session.sessionTag || 'Sesi 1'}]!`);
   },
 
   getTypeLabel: function(type) {
