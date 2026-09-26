@@ -1,5 +1,5 @@
 // Template Jadual Waktu Praktikum Cikgu Nurul Syahfirah binti Arjaman (Minggu 1 - 10)
-// Dikemas kini dengan penyelarasan waktu subjek bukan teras Tahap 2 (4 Arif, 4 Bestari, 5 Arif, 5 Bestari, 6 Arif, 6 Bestari)
+// Dikemas kini dengan tagging siri sesi automatik (Sesi 1 - Sesi 10) & status IPGM (B - Baru, K - Kes Berulang)
 const PRACTICUM_WEEKS = [
   {
     weekNum: 1,
@@ -14,18 +14,18 @@ const PRACTICUM_WEEKS = [
     },
     sessions: [
       { day: "ISNIN", timeStart: "07.00", timeEnd: "12.40", title: "LAPOR DIRI HARI PERTAMA", type: "pentadbiran", classTarget: "-" },
-      { day: "SELASA", timeStart: "07.10", timeEnd: "08.10", title: "KELOMPOK 1 (KENALI EMOSI) (RUJUKAN UBK)", type: "kelompok", classTarget: "Campuran" },
+      { day: "SELASA", timeStart: "07.10", timeEnd: "08.10", title: "KELOMPOK 1 (KENALI EMOSI) (RUJUKAN UBK)", type: "kelompok", classTarget: "Campuran", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "SELASA", timeStart: "08.40", timeEnd: "12.40", title: "LAWATAN SOSIAL BERSAMA PENSYARAH PENYELIA", type: "program", classTarget: "-" },
       { day: "RABU", timeStart: "07.10", timeEnd: "08.10", title: "5 BESTARI (KENALI DIRI)", type: "bimbingan", classTarget: "5 BESTARI" },
       { day: "RABU", timeStart: "08.40", timeEnd: "09.40", title: "1 BESTARI (TENTANG SAYA)", type: "bimbingan", classTarget: "1 BESTARI" },
-      { day: "RABU", timeStart: "10.10", timeEnd: "11.10", title: "KI01", type: "individu", classTarget: "Individu" },
+      { day: "RABU", timeStart: "10.10", timeEnd: "11.10", title: "KI01", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "RABU", timeStart: "11.40", timeEnd: "12.40", title: "4 BESTARI (PSIKOEDUKASI TENTANG SAYA)", type: "bimbingan", classTarget: "4 BESTARI" },
-      { day: "KHAMIS", timeStart: "07.10", timeEnd: "08.10", title: "KI02", type: "individu", classTarget: "Individu" },
+      { day: "KHAMIS", timeStart: "07.10", timeEnd: "08.10", title: "KI02", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "KHAMIS", timeStart: "08.40", timeEnd: "09.40", title: "5 BESTARI (RUMAH SAYA)", type: "bimbingan", classTarget: "5 BESTARI" },
-      { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "KI03", type: "individu", classTarget: "Individu" },
-      { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KI04", type: "individu", classTarget: "Individu" },
-      { day: "JUMAAT", timeStart: "07.10", timeEnd: "08.10", title: "KI05", type: "individu", classTarget: "Individu" },
-      { day: "JUMAAT", timeStart: "09.40", timeEnd: "10.40", title: "KI06", type: "individu", classTarget: "Individu" }
+      { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "KI03", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KI04", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "JUMAAT", timeStart: "07.10", timeEnd: "08.10", title: "KI05", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "JUMAAT", timeStart: "09.40", timeEnd: "10.40", title: "KI06", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" }
     ]
   },
   {
@@ -42,11 +42,11 @@ const PRACTICUM_WEEKS = [
     sessions: [
       { day: "ISNIN", timeStart: "07.00", timeEnd: "12.40", title: "CUTI PERISTIWA DAN CUTI UMUM MAULIDUR RASUL", type: "cuti", classTarget: "-" },
       { day: "SELASA", timeStart: "07.00", timeEnd: "12.40", title: "CUTI PERISTIWA DAN CUTI UMUM MAULIDUR RASUL", type: "cuti", classTarget: "-" },
-      { day: "RABU", timeStart: "08.10", timeEnd: "09.10", title: "KELOMPOK 1 (URUS EMOSI)", type: "kelompok", classTarget: "Kelompok 1" },
+      { day: "RABU", timeStart: "08.10", timeEnd: "09.10", title: "KELOMPOK 1 (URUS EMOSI)", type: "kelompok", classTarget: "Kelompok 1", sessionTag: "Sesi 2", clientStatus: "K" },
       { day: "RABU", timeStart: "10.40", timeEnd: "11.40", title: "4 ARIF (TENTANG SAYA)", type: "bimbingan", classTarget: "4 ARIF" },
       { day: "KHAMIS", timeStart: "08.40", timeEnd: "09.40", title: "5 BESTARI (KERJAYA)", type: "bimbingan", classTarget: "5 BESTARI" },
-      { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KELOMPOK 2 (KENALI DIRI)", type: "kelompok", classTarget: "Kelompok 2" },
-      { day: "JUMAAT", timeStart: "07.40", timeEnd: "08.40", title: "KI107", type: "individu", classTarget: "Individu" },
+      { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KELOMPOK 2 (KENALI DIRI)", type: "kelompok", classTarget: "Kelompok 2", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "JUMAAT", timeStart: "07.40", timeEnd: "08.40", title: "KI107", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "JUMAAT", timeStart: "09.10", timeEnd: "12.40", title: "PROGRAM KEMERDEKAAN DAN PERSARAAN", type: "program", classTarget: "Sekolah" }
     ]
   },
@@ -62,15 +62,15 @@ const PRACTICUM_WEEKS = [
       JUMAAT: "11/09/2026"
     },
     sessions: [
-      { day: "ISNIN", timeStart: "07.10", timeEnd: "08.10", title: "KI08", type: "individu", classTarget: "Individu" },
+      { day: "ISNIN", timeStart: "07.10", timeEnd: "08.10", title: "KI08", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "ISNIN", timeStart: "08.10", timeEnd: "08.40", title: "SARINGAN MINDA SIHAT", type: "saringan", classTarget: "UBK" },
-      { day: "SELASA", timeStart: "07.10", timeEnd: "08.10", title: "KI08", type: "individu", classTarget: "Individu" },
+      { day: "SELASA", timeStart: "07.10", timeEnd: "08.10", title: "KI08", type: "individu", classTarget: "Individu", sessionTag: "Sesi 2", clientStatus: "K" },
       { day: "SELASA", timeStart: "08.40", timeEnd: "09.40", title: "1 ARIF (KENAL EMOSI, URUS EMOSI)", type: "bimbingan", classTarget: "1 ARIF" },
-      { day: "RABU", timeStart: "08.40", timeEnd: "09.10", title: "KI08", type: "individu", classTarget: "Individu" },
+      { day: "RABU", timeStart: "08.40", timeEnd: "09.10", title: "KI08", type: "individu", classTarget: "Individu", sessionTag: "Sesi 3", clientStatus: "K" },
       { day: "RABU", timeStart: "09.40", timeEnd: "12.40", title: "PROGRAM KEPIMPINAN CILIK", type: "program", classTarget: "Pemimpin Muda" },
       { day: "KHAMIS", timeStart: "07.00", timeEnd: "12.40", title: "PROGRAM BOMBA DAN PENYELIAAN ENCI SAID BIN JULPIN", type: "program", classTarget: "Sekolah" },
       { day: "JUMAAT", timeStart: "07.00", timeEnd: "10.40", title: "SENAMROBIK BERSAMA PIBG", type: "program", classTarget: "PIBG" },
-      { day: "JUMAAT", timeStart: "10.40", timeEnd: "11.40", title: "KI08", type: "individu", classTarget: "Individu" }
+      { day: "JUMAAT", timeStart: "10.40", timeEnd: "11.40", title: "KI08", type: "individu", classTarget: "Individu", sessionTag: "Sesi 4", clientStatus: "K" }
     ]
   },
   {
@@ -85,14 +85,14 @@ const PRACTICUM_WEEKS = [
       JUMAAT: "18/09/2026"
     },
     sessions: [
-      { day: "ISNIN", timeStart: "09.10", timeEnd: "10.10", title: "KI09", type: "individu", classTarget: "Individu" },
-      { day: "ISNIN", timeStart: "10.40", timeEnd: "12.10", title: "KELOMPOK 2 (KONSEP KENDIRI)", type: "kelompok", classTarget: "Kelompok 2" },
+      { day: "ISNIN", timeStart: "09.10", timeEnd: "10.10", title: "KI09", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "ISNIN", timeStart: "10.40", timeEnd: "12.10", title: "KELOMPOK 2 (KONSEP KENDIRI)", type: "kelompok", classTarget: "Kelompok 2", sessionTag: "Sesi 2", clientStatus: "K" },
       { day: "SELASA", timeStart: "07.00", timeEnd: "11.40", title: "PROGRAM CERAMAH BUKU TEKS, MAKANAN SIHAT DAN KESIHATAN MENTAL", type: "program", classTarget: "Sekolah" },
       { day: "SELASA", timeStart: "11.40", timeEnd: "12.40", title: "AKTIVITI BIMBINGAN PSIKOEDUKASI DISIPLIN", type: "bimbingan", classTarget: "Disiplin" },
       { day: "RABU", timeStart: "07.00", timeEnd: "12.40", title: "CUTI UMUM HARI MALAYSIA", type: "cuti", classTarget: "-" },
       { day: "KHAMIS", timeStart: "07.00", timeEnd: "08.40", title: "SARINGAN MINDA SIHAT UNTUK YANG TIDAK HADIR 08/09", type: "saringan", classTarget: "UBK" },
       { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "6 ARIF PSIKOEDUKASI PERKHIDMATAN UBK", type: "bimbingan", classTarget: "6 ARIF" },
-      { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "BIMBINGAN KELOMPOK PSIKOSOSIAL", type: "kelompok", classTarget: "Kelompok Psikososial" }
+      { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "BIMBINGAN KELOMPOK PSIKOSOSIAL", type: "kelompok", classTarget: "Kelompok Psikososial", sessionTag: "Sesi 1", clientStatus: "B" }
     ]
   },
   {
@@ -107,11 +107,11 @@ const PRACTICUM_WEEKS = [
       JUMAAT: "25/09/2026"
     },
     sessions: [
-      { day: "ISNIN", timeStart: "10.40", timeEnd: "11.40", title: "KI10 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 ARIF (Waktu BA/BKD)" },
+      { day: "ISNIN", timeStart: "10.40", timeEnd: "11.40", title: "KI10 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 ARIF (Waktu BA/BKD)", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "SELASA", timeStart: "08.00", timeEnd: "12.00", title: "PROGRAM ZIARAH CAKNA BIL 3", type: "program", classTarget: "HEM/Disiplin" },
-      { day: "RABU", timeStart: "07.10", timeEnd: "08.10", title: "KELOMPOK 3 (PENINGKATAN SAHSIAH)", type: "kelompok", classTarget: "4 ARIF (Waktu RBT)" },
-      { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KI11 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 ARIF (Waktu PSV)" },
-      { day: "JUMAAT", timeStart: "10.10", timeEnd: "11.10", title: "BIMBINGAN KELOMPOK TAHAP 2", type: "kelompok", classTarget: "5 BESTARI (Waktu PSV)" }
+      { day: "RABU", timeStart: "07.10", timeEnd: "08.10", title: "KELOMPOK 3 (PENINGKATAN SAHSIAH)", type: "kelompok", classTarget: "4 ARIF (Waktu RBT)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KI11 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 ARIF (Waktu PSV)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "JUMAAT", timeStart: "10.10", timeEnd: "11.10", title: "BIMBINGAN KELOMPOK TAHAP 2", type: "kelompok", classTarget: "5 BESTARI (Waktu PSV)", sessionTag: "Sesi 1", clientStatus: "B" }
     ]
   },
   {
@@ -126,11 +126,11 @@ const PRACTICUM_WEEKS = [
       JUMAAT: "02/10/2026"
     },
     sessions: [
-      { day: "ISNIN", timeStart: "11.10", timeEnd: "12.10", title: "KI12 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 BESTARI (Waktu RBT)" },
+      { day: "ISNIN", timeStart: "11.10", timeEnd: "12.10", title: "KI12 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 BESTARI (Waktu RBT)", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "SELASA", timeStart: "08.00", timeEnd: "10.00", title: "PELAPORAN ANALISIS KEHADIRAN KELAS", type: "pentadbiran", classTarget: "HEM" },
-      { day: "SELASA", timeStart: "11.10", timeEnd: "12.10", title: "KI13 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 BESTARI (Waktu PSV)" },
-      { day: "RABU", timeStart: "10.40", timeEnd: "11.40", title: "KELOMPOK 4 (PENGURUSAN EMOSI)", type: "kelompok", classTarget: "6 ARIF (Waktu Moral)" },
-      { day: "KHAMIS", timeStart: "08.10", timeEnd: "09.10", title: "KI14 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 ARIF (Waktu RBT)" },
+      { day: "SELASA", timeStart: "11.10", timeEnd: "12.10", title: "KI13 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 BESTARI (Waktu PSV)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "RABU", timeStart: "10.40", timeEnd: "11.40", title: "KELOMPOK 4 (PENGURUSAN EMOSI)", type: "kelompok", classTarget: "6 ARIF (Waktu Moral)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "KHAMIS", timeStart: "08.10", timeEnd: "09.10", title: "KI14 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 ARIF (Waktu RBT)", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "JUMAAT", timeStart: "07.40", timeEnd: "08.40", title: "BIMBINGAN KELAS TAHAP 2", type: "bimbingan", classTarget: "6 ARIF (Waktu PSV)" }
     ]
   },
@@ -147,10 +147,10 @@ const PRACTICUM_WEEKS = [
     },
     sessions: [
       { day: "ISNIN", timeStart: "08.00", timeEnd: "12.00", title: "PROGRAM KEHADIRAN TERBAIK & PEMERIKSAAN GIGI", type: "program", classTarget: "Sekolah" },
-      { day: "SELASA", timeStart: "11.10", timeEnd: "12.10", title: "KI15 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 ARIF (Waktu SEJ)" },
-      { day: "RABU", timeStart: "11.10", timeEnd: "12.10", title: "KI16 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 BESTARI (Waktu PSV)" },
-      { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "KELOMPOK 5 (KEMAHIRAN BERSOSIAL)", type: "kelompok", classTarget: "6 ARIF (Waktu SEJ)" },
-      { day: "JUMAAT", timeStart: "10.10", timeEnd: "11.10", title: "KI17 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 ARIF (Waktu PSV)" }
+      { day: "SELASA", timeStart: "11.10", timeEnd: "12.10", title: "KI15 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 ARIF (Waktu SEJ)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "RABU", timeStart: "11.10", timeEnd: "12.10", title: "KI16 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 BESTARI (Waktu PSV)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "KELOMPOK 5 (KEMAHIRAN BERSOSIAL)", type: "kelompok", classTarget: "6 ARIF (Waktu SEJ)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "JUMAAT", timeStart: "10.10", timeEnd: "11.10", title: "KI17 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 ARIF (Waktu PSV)", sessionTag: "Sesi 1", clientStatus: "B" }
     ]
   },
   {
@@ -165,11 +165,11 @@ const PRACTICUM_WEEKS = [
       JUMAAT: "16/10/2026"
     },
     sessions: [
-      { day: "ISNIN", timeStart: "08.10", timeEnd: "09.10", title: "KI18 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 BESTARI (Waktu PI)" },
-      { day: "SELASA", timeStart: "11.40", timeEnd: "12.40", title: "KI19 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 ARIF (Waktu BKD)" },
+      { day: "ISNIN", timeStart: "08.10", timeEnd: "09.10", title: "KI18 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 BESTARI (Waktu PI)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "SELASA", timeStart: "11.40", timeEnd: "12.40", title: "KI19 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 ARIF (Waktu BKD)", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "RABU", timeStart: "08.10", timeEnd: "09.10", title: "BIMBINGAN KELAS TAHAP 2", type: "bimbingan", classTarget: "5 BESTARI (Waktu SEJ)" },
       { day: "KHAMIS", timeStart: "07.30", timeEnd: "12.40", title: "SAMBUTAN HARI KANAK-KANAK", type: "program", classTarget: "Sekolah" },
-      { day: "JUMAAT", timeStart: "08.40", timeEnd: "09.40", title: "KI20 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 BESTARI (Waktu RBT)" }
+      { day: "JUMAAT", timeStart: "08.40", timeEnd: "09.40", title: "KI20 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 BESTARI (Waktu RBT)", sessionTag: "Sesi 1", clientStatus: "B" }
     ]
   },
   {
@@ -184,11 +184,11 @@ const PRACTICUM_WEEKS = [
       JUMAAT: "23/10/2026"
     },
     sessions: [
-      { day: "ISNIN", timeStart: "11.40", timeEnd: "12.10", title: "KI21 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 BESTARI (Waktu MZ)" },
-      { day: "SELASA", timeStart: "10.40", timeEnd: "11.40", title: "KI22 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 BESTARI (Waktu PI)" },
-      { day: "RABU", timeStart: "11.10", timeEnd: "11.40", title: "KI23 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 ARIF (Waktu MZ)" },
-      { day: "KHAMIS", timeStart: "08.10", timeEnd: "08.40", title: "BIMBINGAN KELOMPOK PENUTUPAN TAHAP 2", type: "kelompok", classTarget: "4 ARIF (Waktu PJ)" },
-      { day: "JUMAAT", timeStart: "10.10", timeEnd: "11.10", title: "KI24 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 ARIF (Waktu RBT)" }
+      { day: "ISNIN", timeStart: "11.40", timeEnd: "12.10", title: "KI21 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 BESTARI (Waktu MZ)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "SELASA", timeStart: "10.40", timeEnd: "11.40", title: "KI22 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "5 BESTARI (Waktu PI)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "RABU", timeStart: "11.10", timeEnd: "11.40", title: "KI23 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "4 ARIF (Waktu MZ)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "KHAMIS", timeStart: "08.10", timeEnd: "08.40", title: "BIMBINGAN KELOMPOK PENUTUPAN TAHAP 2", type: "kelompok", classTarget: "4 ARIF (Waktu PJ)", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "JUMAAT", timeStart: "10.10", timeEnd: "11.10", title: "KI24 (SESI INDIVIDU TAHAP 2)", type: "individu", classTarget: "6 ARIF (Waktu RBT)", sessionTag: "Sesi 1", clientStatus: "B" }
     ]
   },
   {
@@ -203,7 +203,7 @@ const PRACTICUM_WEEKS = [
       JUMAAT: "30/10/2026"
     },
     sessions: [
-      { day: "ISNIN", timeStart: "09.10", timeEnd: "09.40", title: "SESI RUMUSAN & REFLEKSI KLIEN TAHAP 2", type: "individu", classTarget: "Klien UBK" },
+      { day: "ISNIN", timeStart: "09.10", timeEnd: "09.40", title: "SESI RUMUSAN & REFLEKSI KLIEN TAHAP 2", type: "individu", classTarget: "Klien UBK", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "RABU", timeStart: "08.00", timeEnd: "10.00", title: "PELAPORAN ANALISIS KEHADIRAN KELAS", type: "pentadbiran", classTarget: "HEM" },
       { day: "KHAMIS", timeStart: "08.00", timeEnd: "10.00", title: "PELAPORAN & TUNTUAN RMT", type: "pentadbiran", classTarget: "RMT" },
       { day: "JUMAAT", timeStart: "07.00", timeEnd: "12.40", title: "PENUTUPAN PRAKTIKUM UBK SK TAMPASUK 1", type: "program", classTarget: "UBK" }
