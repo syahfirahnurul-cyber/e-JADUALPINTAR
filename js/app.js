@@ -330,14 +330,65 @@ const App = {
   },
 
   savePracticumData: function() {
-    localStorage.setItem("ubk_practicum_schedule_2026", JSON.stringify(this.state.practicumData));
+    const jsonStr = JSON.stringify(this.state.practicumData);
+    localStorage.setItem("ubk_practicum_schedule_2026", jsonStr);
+    
+    const now = Date.now();
+    localStorage.setItem("ubk_last_local_update", now.toString());
+    localStorage.setItem("ubk_emergency_autosave", jsonStr);
+    localStorage.setItem("ubk_emergency_autosave_time", new Date().toLocaleString("ms-MY"));
+
+    // Simpan ke senarai snapshot sejarah (15 versi terkini untuk pemulihan)
+    this.saveScheduleSnapshot("Kemaskini Jadual");
+
     if (typeof CloudSync !== "undefined") {
       CloudSync.uploadToCloud(this.state.practicumData);
     }
   },
 
+  // Simpan snapshot berputar (rolling snapshot history)
+  saveScheduleSnapshot: function(label = "Simpanan Automatik") {
+    try {
+      const snapshots = JSON.parse(localStorage.getItem("ubk_schedule_snapshots") || "[]");
+      const currentJson = JSON.stringify(this.state.practicumData);
+      
+      // Elakkan pendua berturut-turut jika tiada perubahan
+      if (snapshots.length > 0 && snapshots[0].json === currentJson) return;
+
+      const count = this.calculateTotalSessions();
+      const newSnap = {
+        id: "snap_" + Date.now(),
+        timeStr: new Date().toLocaleTimeString("ms-MY", { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        dateStr: new Date().toLocaleDateString("ms-MY"),
+        timestamp: Date.now(),
+        label: label,
+        totalSessions: count,
+        json: currentJson
+      };
+
+      snapshots.unshift(newSnap);
+      // Simpan sehingga 15 versi terkini
+      const trimmed = snapshots.slice(0, 15);
+      localStorage.setItem("ubk_schedule_snapshots", JSON.stringify(trimmed));
+    } catch (e) {}
+  },
+
+  calculateTotalSessions: function() {
+    let count = 0;
+    if (this.state.practicumData && Array.isArray(this.state.practicumData)) {
+      this.state.practicumData.forEach(w => {
+        if (w.sessions && Array.isArray(w.sessions)) {
+          count += w.sessions.length;
+        }
+      });
+    }
+    return count;
+  },
+
   resetPracticumData: function() {
     if (confirm("Adakah anda pasti mahu menetapkan semula jadual praktikum ke template asal? Semua sesi tambahan akan dipadam.")) {
+      // Simpan sandaran sebelum reset
+      this.saveScheduleSnapshot("Sebelum Reset ke Asal");
       this.state.practicumData = JSON.parse(JSON.stringify(PRACTICUM_WEEKS));
       this.savePracticumData();
       this.render();
@@ -352,10 +403,18 @@ const App = {
     const saved = localStorage.getItem("ubk_saved_clients_profiles");
     if (saved) {
       try {
-        this.state.savedClients = JSON.parse(saved);
-      } catch (e) {
-        this.state.savedClients = [];
-      }
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.state.savedClients = parsed;
+          this.populateSavedClientsDropdown();
+          return;
+        }
+      } catch (e) {}
+    }
+    // Jika belum ada dalam localStorage, muatkan daripada RECOVERED_CLIENT_PROFILES
+    if (typeof RECOVERED_CLIENT_PROFILES !== "undefined" && Array.isArray(RECOVERED_CLIENT_PROFILES) && RECOVERED_CLIENT_PROFILES.length > 0) {
+      this.state.savedClients = JSON.parse(JSON.stringify(RECOVERED_CLIENT_PROFILES));
+      localStorage.setItem("ubk_saved_clients_profiles", JSON.stringify(this.state.savedClients));
     } else {
       this.state.savedClients = this.autoExtractClientsFromSchedule();
       if (this.state.savedClients.length > 0) {
@@ -822,7 +881,7 @@ const App = {
   // =========================================================
   // TOAST NOTIFICATION DENGAN UNDO SUPPORT
   // =========================================================
-  showToast: function(message, undoFn, durationMs) {
+  showToast: function(message, undoFn, durationMs, undoLabel) {
     const toast = document.getElementById("toastNotification");
     if (!toast) return;
 
@@ -833,10 +892,11 @@ const App = {
     }
 
     const duration = durationMs || 7000;
+    const label = undoLabel || "↩️ Undo";
 
     toast.innerHTML = `
       <span>${message}</span>
-      ${undoFn ? `<button class="toast-undo-btn" onclick="App._handleUndo()">↩ Undo</button>` : ''}
+      ${undoFn ? `<button class="toast-undo-btn" onclick="App._handleUndo()">${label}</button>` : ''}
     `;
     toast.style.display = "flex";
     toast._undoFn = undoFn || null;
@@ -3492,6 +3552,144 @@ const App = {
     };
     reader.readAsText(file);
     e.target.value = ""; // Reset input
+  },
+
+  // =========================================================
+  // PUSAT KESELAMATAN & PEMULIHAN JADUAL (ZERO-LOSS RECOVERY)
+  // =========================================================
+  openBackupRecoveryModal: function() {
+    const modal = document.getElementById("backupRecoveryModal");
+    if (!modal) return;
+
+    // 1. Semak sandaran sebelum segerak (Pre-Sync Backup)
+    const preSyncLabel = document.getElementById("preSyncBackupTimeLabel");
+    const preSyncJson = localStorage.getItem("ubk_emergency_backup_before_sync");
+    const preSyncTime = localStorage.getItem("ubk_pre_sync_time");
+    if (preSyncJson && preSyncLabel) {
+      try {
+        const parsed = JSON.parse(preSyncJson);
+        const count = Array.isArray(parsed) ? parsed.reduce((acc, w) => acc + (w.sessions ? w.sessions.length : 0), 0) : 0;
+        const timeStr = preSyncTime ? new Date(preSyncTime).toLocaleTimeString("ms-MY") : "Terdahulu";
+        preSyncLabel.innerHTML = `✅ Ditemui (${timeStr}) • <b>${count} sesi</b>`;
+      } catch (e) {
+        preSyncLabel.innerText = "Data sandaran sedia ada";
+      }
+    } else if (preSyncLabel) {
+      preSyncLabel.innerText = "Tiada sandaran sebelum segerak dikesan.";
+    }
+
+    // 2. Semak sandaran autosave tempatan
+    const autoLabel = document.getElementById("emergencyAutosaveTimeLabel");
+    const autoJson = localStorage.getItem("ubk_emergency_autosave");
+    const autoTime = localStorage.getItem("ubk_emergency_autosave_time");
+    if (autoJson && autoLabel) {
+      try {
+        const parsed = JSON.parse(autoJson);
+        const count = Array.isArray(parsed) ? parsed.reduce((acc, w) => acc + (w.sessions ? w.sessions.length : 0), 0) : 0;
+        autoLabel.innerHTML = `✅ Disimpan: ${autoTime || 'Masa ini'} • <b>${count} sesi</b>`;
+      } catch (e) {
+        autoLabel.innerText = "Tersimpan di peranti";
+      }
+    } else if (autoLabel) {
+      autoLabel.innerText = "Tiada autosave dikesan.";
+    }
+
+    // 3. Muatkan senarai snapshot sejarah
+    this.renderSnapshotHistoryList();
+
+    modal.style.display = "flex";
+  },
+
+  closeBackupRecoveryModal: function() {
+    const modal = document.getElementById("backupRecoveryModal");
+    if (modal) modal.style.display = "none";
+  },
+
+  renderSnapshotHistoryList: function() {
+    const container = document.getElementById("snapshotHistoryList");
+    if (!container) return;
+
+    const snapshots = JSON.parse(localStorage.getItem("ubk_schedule_snapshots") || "[]");
+    if (snapshots.length === 0) {
+      container.innerHTML = `<div style="padding: 12px; color: #64748b; font-size: 0.82rem; text-align: center;">Tiada sejarah snapshot lagi. Sejarah akan terkumpul setiap kali anda menyunting jadual.</div>`;
+      return;
+    }
+
+    let html = `<table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: left;">
+      <thead>
+        <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; color: #475569;">
+          <th style="padding: 6px 8px;">Masa & Tarikh</th>
+          <th style="padding: 6px 8px;">Tindakan</th>
+          <th style="padding: 6px 8px;">Bil. Sesi</th>
+          <th style="padding: 6px 8px; text-align: right;">Tindakan</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    snapshots.forEach((snap, idx) => {
+      html += `
+        <tr style="border-bottom: 1px solid #f1f5f9; ${idx % 2 === 1 ? 'background: #f8fafc;' : ''}">
+          <td style="padding: 6px 8px; font-weight: 600; color: #1e293b;">${snap.timeStr} <span style="font-size: 0.72rem; color: #64748b; font-weight: 400;">(${snap.dateStr || ''})</span></td>
+          <td style="padding: 6px 8px; color: #475569;">${snap.label || 'Simpanan'}</td>
+          <td style="padding: 6px 8px; font-weight: 700; color: #0284c7;">${snap.totalSessions || 0}</td>
+          <td style="padding: 6px 8px; text-align: right;">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="App.restoreSnapshot('${snap.id}')" style="font-size: 0.75rem; padding: 2px 8px;">
+              ♻️ Pulihkan
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+  },
+
+  restoreEmergencyAutosave: function() {
+    const jsonStr = localStorage.getItem("ubk_emergency_autosave");
+    if (!jsonStr) {
+      alert("Tiada data autosave kecemasan ditemui.");
+      return;
+    }
+    if (confirm("Adakah anda pasti mahu memuatkan semula salinan Autosave Tempatan?")) {
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.state.practicumData = parsed;
+          this.savePracticumData();
+          this.render();
+          this.closeBackupRecoveryModal();
+          alert("✅ Berjaya! Jadual telah dipulihkan daripada Autosave Tempatan.");
+        }
+      } catch (e) {
+        alert("Ralat memulihkan autosave: " + e.message);
+      }
+    }
+  },
+
+  restoreSnapshot: function(snapId) {
+    const snapshots = JSON.parse(localStorage.getItem("ubk_schedule_snapshots") || "[]");
+    const snap = snapshots.find(s => s.id === snapId);
+    if (!snap) {
+      alert("Versi snapshot ini tidak dijumpai.");
+      return;
+    }
+    if (confirm(`Adakah anda pasti mahu memulihkan jadual ke versi [${snap.timeStr} - ${snap.label}] (${snap.totalSessions} sesi)?`)) {
+      try {
+        const parsed = JSON.parse(snap.json);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Simpan snapshot keadaan sekarang sebelum undur
+          this.saveScheduleSnapshot("Sebelum Undur Versi");
+          this.state.practicumData = parsed;
+          this.savePracticumData();
+          this.render();
+          this.closeBackupRecoveryModal();
+          alert(`✅ Berjaya! Jadual telah dikembalikan ke versi [${snap.timeStr}].`);
+        }
+      } catch (e) {
+        alert("Ralat memulihkan snapshot: " + e.message);
+      }
+    }
   },
 
   toggleToolsMenu: function() {

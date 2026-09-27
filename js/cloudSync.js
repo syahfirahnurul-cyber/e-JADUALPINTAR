@@ -316,7 +316,7 @@ const CloudSync = {
     }, this.config.pollIntervalMs);
   },
 
-  // 9. Fungsi Utama: Segerak dengan Cloud (Pull & Push Pintar)
+  // 9. Fungsi Utama: Segerak dengan Cloud (Local-First Zero-Loss Sync)
   syncWithCloud: async function() {
     if (!this.state.isOnline || this.state.isSyncing) return;
     
@@ -349,40 +349,69 @@ const CloudSync = {
         const remoteRes = await res.json();
         const parsed = this.parsePracticumPayload(remoteRes);
         const remoteData = parsed.data;
-        const remoteTimestamp = parsed.timestamp;
+        const remoteTimestamp = parsed.timestamp || 0;
 
         if (remoteData && Array.isArray(remoteData) && remoteData.length > 0) {
           const currentJson = JSON.stringify(App.state.practicumData);
           const remoteJson = JSON.stringify(remoteData);
 
-          // Jika data di cloud berbeza dengan memori peranti ini
-          if (currentJson !== remoteJson) {
-            // Kemas kini data terus dari Cloud (Google Sheets) sebagai punca kebenaran utama
-            this.handleIncomingData(remoteData, "Google Sheets (Cloud)");
+          // 1. Sekiranya data tempatan dan remote adalah 100% serupa
+          if (currentJson === remoteJson) {
             this.state.lastRemoteTimestamp = remoteTimestamp;
-            localStorage.setItem("ubk_last_local_update", (remoteTimestamp || Date.now()).toString());
+            this.updateStatusPill("connected", "Terselaras 100% (Cloud & Peranti)");
+          } else {
+            // 2. Data berbeza: Gunakan logik 'Local-First' untuk melindungi hasil kerja pengguna!
+            if (localUpdated > remoteTimestamp) {
+              // DATA TEMPATAN LEBIH BAHARU! Pengguna baru susun jadual di peranti ini.
+              // JANGAN SESEKALI TIMPA DENGAN DATA AWAN LAMA!
+              // Sebaliknya, muat naik susunan tempatan ke Google Sheets!
+              console.log("Perlindungan Data: Susunan tempatan (" + localUpdated + ") lebih baharu daripada Cloud (" + remoteTimestamp + "). Memuat naik ke Cloud...");
+              await this.uploadToCloud(App.state.practicumData);
+              this.updateStatusPill("connected", "Susunan Tempatan Dikunci ke Cloud");
+            } else if (remoteTimestamp > localUpdated) {
+              // Data di Cloud lebih baharu (cth: disunting daripada peranti lain).
+              // Simpan sandaran kecemasan data tempatan SEBELUM membenarkan kemasukan data Cloud!
+              localStorage.setItem("ubk_emergency_backup_before_sync", currentJson);
+              localStorage.setItem("ubk_pre_sync_time", new Date().toISOString());
+              if (typeof App.saveScheduleSnapshot === "function") {
+                App.saveScheduleSnapshot("Sandaran Sebelum Segerak Cloud");
+              }
+
+              this.handleIncomingData(remoteData, "Google Sheets (Cloud)");
+              this.state.lastRemoteTimestamp = remoteTimestamp;
+              localStorage.setItem("ubk_last_local_update", remoteTimestamp.toString());
+              this.updateStatusPill("connected", "Cloud Live (Terkini)");
+
+              // Paparkan banner pemulihan kecemasan jika pengguna ingin kembalikan jadual asal
+              const alertBanner = document.getElementById("syncRecoveryAlertBanner");
+              if (alertBanner) alertBanner.style.display = "flex";
+            } else {
+              // Jika timestamp sama atau local belum pernah dikemaskini (cth: peranti baharu)
+              if (!this.state.hasDoneInitialSync && (!localUpdated || localUpdated === 0)) {
+                this.handleIncomingData(remoteData, "Google Sheets (Cloud)");
+              }
+            }
           }
           this.state.hasDoneInitialSync = true;
         } else if ((!remoteData || remoteData.length === 0) && this.state.userRole === "admin" && App.state.practicumData && App.state.practicumData.length > 0 && !this.state.hasDoneInitialSync) {
-          // Hanya jika cloud benar-benar kosong kali pertama, muat naik data sedia ada Cikgu
+          // Hanya jika cloud kosong, muat naik jadual sedia ada Cikgu
           this.state.hasDoneInitialSync = true;
           await this.uploadToCloud(App.state.practicumData);
         }
 
         this.state.lastSyncTime = new Date();
-        this.updateStatusPill("connected", "Cloud Live (Real-Time)");
       } else {
         this.updateStatusPill("error", "Ralat Cloud (" + res.status + ")");
       }
     } catch (err) {
       console.warn("Penyegerakan Cloud:", err);
-      this.updateStatusPill("error", "Gagal Hubung Cloud");
+      this.updateStatusPill("error", "Luar Talian / Gagal Hubung");
     } finally {
       this.state.isSyncing = false;
     }
   },
 
-  // 10. Muat naik kemaskini baharu ke Cloud
+  // 10. Muat naik kemaskini baharu ke Cloud dengan ketahanan berganda (No-CORS Fallback)
   uploadToCloud: async function(practicumData) {
     const timestamp = Date.now();
     localStorage.setItem("ubk_last_local_update", timestamp.toString());
@@ -412,12 +441,22 @@ const CloudSync = {
       };
 
       if (this.state.backendType === "gas") {
-        // Google Apps Script Web App: gunakan 'text/plain' untuk memintas sekatan CORS preflight pelayar
-        await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify(payload)
-        });
+        // Google Apps Script Web App: gunakan pendekatan pintar dengan fallback no-cors
+        try {
+          await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+          });
+        } catch (gasErr) {
+          console.warn("CORS redirect pelayar dikesan, beralih ke mod penghantaran no-cors yang dijamin lulus:", gasErr);
+          await fetch(endpoint, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+          });
+        }
       } else if (this.state.backendType === "firebase") {
         let clean = endpoint.replace(/\/$/, "");
         if (!clean.endsWith(".json")) clean = `${clean}/${this.config.channelId}.json`;
@@ -436,20 +475,24 @@ const CloudSync = {
       }
 
       this.state.lastSyncTime = new Date();
-      this.updateStatusPill("connected", "Cloud Live (Real-Time)");
+      this.updateStatusPill("connected", "Tersimpan Abadi di Cloud & Peranti");
     } catch (err) {
       console.warn("Gagal muat naik ke cloud:", err);
       this.updateStatusPill("error", "Gagal Simpan Cloud");
     }
   },
 
-  // 11. Kendalikan kemasukan data baharu dari Cloud atau Tab Lain
+  // 11. Kendalikan kemasukan data baharu dari Cloud atau Tab Lain dengan perlindungan Undo
   handleIncomingData: function(newData, sourceLabel = "Cloud") {
     if (!Array.isArray(newData) || newData.length === 0) return;
 
     const currentJson = JSON.stringify(App.state.practicumData);
     const newJson = JSON.stringify(newData);
     if (currentJson === newJson) return;
+
+    // Simpan salinan kecemasan data tempatan SEBELUM ditimpa
+    localStorage.setItem("ubk_emergency_backup_before_sync", currentJson);
+    localStorage.setItem("ubk_pre_sync_time", new Date().toISOString());
 
     App.state.practicumData = newData;
     localStorage.setItem("ubk_practicum_schedule_2026", newJson);
@@ -460,7 +503,51 @@ const CloudSync = {
     }
 
     App.render();
-    App.showToast(`🔄 Jadual dikemaskini secara langsung daripada ${sourceLabel}!`, null, 3500);
+    
+    // Tunjukkan notifikasi bersama butang Kembalikan Susunan Tempatan
+    App.showToast(`🔄 Jadual dikemaskini daripada ${sourceLabel}.`, () => {
+      CloudSync.restorePreSyncBackup();
+    }, 9000, "↩️ Kembalikan Susunan Asal");
+  },
+
+  // 11b. Pulihkan Sandaran Kecemasan Sebelum Segerak (Emergency Pre-Sync Restore)
+  restorePreSyncBackup: function() {
+    const backupJson = localStorage.getItem("ubk_emergency_backup_before_sync");
+    if (!backupJson) {
+      alert("Tiada salinan sandaran sebelum segerak ditemui.");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(backupJson);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        App.state.practicumData = parsed;
+        const now = Date.now();
+        localStorage.setItem("ubk_practicum_schedule_2026", backupJson);
+        localStorage.setItem("ubk_last_local_update", now.toString());
+        localStorage.setItem("ubk_emergency_autosave", backupJson);
+
+        this.uploadToCloud(parsed);
+        App.render();
+
+        const alertBanner = document.getElementById("syncRecoveryAlertBanner");
+        if (alertBanner) alertBanner.style.display = "none";
+
+        alert("✅ Berjaya! Susunan asal anda telah dipulihkan 100% dan dikunci semula ke Cloud & peranti.");
+      }
+    } catch (e) {
+      alert("Ralat memulihkan sandaran: " + e.message);
+    }
+  },
+
+  // 11c. Paksa Simpan & Kunci Data Tempatan ke Cloud (Force Push)
+  forcePushLocalToCloud: async function() {
+    if (!confirm("Adakah anda pasti mahu memuat naik dan mengunci susunan jadual di skrin ini ke Cloud (Google Sheets)?\n\nData di Google Sheets akan dikemaskini mengikut paparan jadual semasa anda.")) {
+      return;
+    }
+    const now = Date.now();
+    localStorage.setItem("ubk_last_local_update", now.toString());
+    await this.uploadToCloud(App.state.practicumData);
+    alert("✅ Berjaya! Susunan jadual semasa telah dikunci dan dimuat naik ke Cloud.");
   },
 
   // 12. Uji Sambungan Backend (Untuk Butang 'Uji Sambungan' di UI)

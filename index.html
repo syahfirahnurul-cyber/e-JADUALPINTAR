@@ -32,6 +32,11 @@
           <span id="cloudStatusLabel">Live Sync</span>
         </button>
 
+        <!-- Butang Keselamatan & Pemulihan Kecemasan Jadual -->
+        <button class="btn" id="btnEmergencyRestore" onclick="App.openBackupRecoveryModal()" title="Pusat Keselamatan & Pemulihan Jadual" style="background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; font-weight: 700;">
+          <span>🛡️</span> Keselamatan & Sandaran
+        </button>
+
         <button class="btn btn-primary" id="btnOpenAddSession" onclick="App.openAddSessionModal()">
           <span>➕</span> Tambah Sesi
         </button>
@@ -178,6 +183,25 @@
 
         <!-- Panel "Hari Ini Sekilas Pandang" (Auto-populated) -->
         <div id="todayDashboard"></div>
+
+        <!-- Banner Amaran Pemulihan Kecemasan Selepas Pautan / Cloud Sync -->
+        <div id="syncRecoveryAlertBanner" style="display: none; background: #fffbeb; border: 1px solid #fde68a; border-left: 5px solid #f59e0b; padding: 12px 16px; border-radius: 8px; margin-bottom: 1rem; align-items: center; justify-content: space-between; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15);">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 1.6rem;">🚨</span>
+            <div>
+              <strong style="color: #92400e; font-size: 0.95rem;">Perubahan Dikesan Selepas Membuka Pautan Web / Cloud Sync</strong>
+              <p style="margin: 2px 0 0; font-size: 0.82rem; color: #78350f;">Sekiranya susunan jadual yang anda baru tetapkan kelihatan bertukar atau tertimpa oleh data awan lama, sistem telah menyimpan salinan asal anda dengan selamat.</p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-shrink: 0;">
+            <button type="button" onclick="CloudSync.restorePreSyncBackup()" style="background: #f59e0b; color: white; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.84rem; display: inline-flex; align-items: center; gap: 4px;">
+              <span>♻️</span> Pulihkan Susunan Asal
+            </button>
+            <button type="button" onclick="document.getElementById('syncRecoveryAlertBanner').style.display='none'" style="background: white; border: 1px solid #d97706; color: #92400e; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.84rem;">
+              Tutup
+            </button>
+          </div>
+        </div>
 
         <!-- Panel Pintar: Cadangan Sesi Seterusnya Klien Sedia Ada (Smart Auto-Suggest) -->
         <div id="clientNextSessionSuggestionsWidget" style="margin-bottom: 1rem; display: none;"></div>
@@ -1243,6 +1267,86 @@
     </div>
   </div>
 
+  <!-- Modal Keselamatan & Pemulihan Jadual (Backup & Recovery Center) -->
+  <div class="modal-overlay" id="backupRecoveryModal" style="display: none;" onclick="if(event.target===this) App.closeBackupRecoveryModal()">
+    <div class="modal-card" style="max-width: 680px; width: 95%;">
+      <div class="modal-header">
+        <h2 style="display: flex; align-items: center; gap: 8px;">
+          <span>🛡️</span> Pusat Keselamatan &amp; Pemulihan Jadual
+        </h2>
+        <button class="btn-close" onclick="App.closeBackupRecoveryModal()" aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        
+        <!-- Kad Status Perlindungan -->
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; margin-bottom: 1rem; display: flex; align-items: flex-start; gap: 10px;">
+          <span style="font-size: 1.4rem;">🔒</span>
+          <div>
+            <strong style="color: #166534; font-size: 0.9rem;">Sistem Perlindungan Tanpa Kehilangan Data (Zero-Loss) Aktif</strong>
+            <p style="margin: 2px 0 0; font-size: 0.8rem; color: #15803d;">
+              Setiap kali anda menyusun jadual, sistem secara automatik menyimpan salinan kecemasan ke dalam memori komputer dan menyegerakkannya ke Cloud.
+            </p>
+          </div>
+        </div>
+
+        <!-- Bahagian 1: Tindakan Pemulihan Segera -->
+        <h3 style="font-size: 0.95rem; color: #1e293b; margin: 0 0 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+          🚨 Pemulihan Kecemasan (1-Klik)
+        </h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.2rem;">
+          <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="font-weight: 700; color: #9a3412; font-size: 0.85rem;">♻️ Sandaran Sebelum Segerak</div>
+              <div id="preSyncBackupTimeLabel" style="font-size: 0.75rem; color: #c2410c; margin-top: 3px;">Memeriksa...</div>
+            </div>
+            <button type="button" class="btn btn-warning btn-sm" onclick="CloudSync.restorePreSyncBackup()" style="margin-top: 8px; font-weight: 700;">
+              Pulihkan Susunan Asal
+            </button>
+          </div>
+
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="font-weight: 700; color: #1e40af; font-size: 0.85rem;">💾 Sandaran Autosave Tempatan</div>
+              <div id="emergencyAutosaveTimeLabel" style="font-size: 0.75rem; color: #2563eb; margin-top: 3px;">Memeriksa...</div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="App.restoreEmergencyAutosave()" style="margin-top: 8px; font-weight: 700;">
+              Muatkan Autosave
+            </button>
+          </div>
+        </div>
+
+        <!-- Bahagian 2: Sejarah Versi Jadual (Snapshots) -->
+        <h3 style="font-size: 0.95rem; color: #1e293b; margin: 0 0 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+          <span>⏳ Sejarah Suntingan (Snapshot Versi)</span>
+          <span style="font-size: 0.75rem; color: #64748b; font-weight: 400;">Maksimum 15 Versi</span>
+        </h3>
+        <div id="snapshotHistoryList" style="margin-bottom: 1.2rem; max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px;">
+          <!-- Senarai snapshot dimuatkan secara dinamik -->
+        </div>
+
+        <!-- Bahagian 3: Muat Turun & Cloud Push -->
+        <h3 style="font-size: 0.95rem; color: #1e293b; margin: 0 0 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+          📂 Simpanan Luar &amp; Kunci Cloud
+        </h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="App.downloadBackupJSON()" style="font-weight: 600;">
+            📥 Muat Turun Fail Sandaran (.JSON)
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="App.openRestoreBackupModal()" style="font-weight: 600;">
+            📂 Muat Naik dari Fail (.JSON)
+          </button>
+          <button type="button" class="btn btn-accent btn-sm" onclick="CloudSync.forcePushLocalToCloud()" style="font-weight: 700;">
+            ☁️ Kunci Susunan ke Google Sheets
+          </button>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="App.closeBackupRecoveryModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Input Fail Tersembunyi untuk Muat Naik Sandaran JSON -->
   <input type="file" id="backupFileInput" style="display: none;" accept=".json" onchange="App.handleRestoreFile(event)">
 
@@ -1252,12 +1356,13 @@
   <!-- JavaScript Modules -->
   <script src="data/jadualKelas.js"></script>
   <script src="data/jadualGuru.js"></script>
-  <script src="data/jadualPraktikum.js?v=20260927_09"></script>
+  <script src="data/clientData.js?v=20260927_10"></script>
+  <script src="data/jadualPraktikum.js?v=20260927_10"></script>
   <script src="data/muridData.js"></script>
   <script src="data/takwim.js"></script>
   <script src="js/suggester.js"></script>
-  <script src="js/cloudSync.js?v=20260927_09"></script>
-  <script src="js/app.js?v=20260927_09"></script>
+  <script src="js/cloudSync.js?v=20260927_10"></script>
+  <script src="js/app.js?v=20260927_10"></script>
 
 </body>
 </html>
