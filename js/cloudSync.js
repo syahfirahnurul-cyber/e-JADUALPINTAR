@@ -370,31 +370,34 @@ const CloudSync = {
               this.updateStatusPill("connected", "Susunan Tempatan Dikunci ke Cloud");
             } else if (remoteTimestamp > localUpdated) {
               // Data di Cloud lebih baharu (cth: disunting daripada peranti lain).
-              // Simpan sandaran kecemasan data tempatan SEBELUM membenarkan kemasukan data Cloud!
-              localStorage.setItem("ubk_emergency_backup_before_sync", currentJson);
-              localStorage.setItem("ubk_pre_sync_time", new Date().toISOString());
-              if (typeof App.saveScheduleSnapshot === "function") {
-                App.saveScheduleSnapshot("Sandaran Sebelum Segerak Cloud");
+              // HANYA simpan sandaran kecemasan & papar banner jika peranti ini ada data sebelum ini!
+              if (localUpdated > 0) {
+                localStorage.setItem("ubk_emergency_backup_before_sync", currentJson);
+                localStorage.setItem("ubk_pre_sync_time", new Date().toISOString());
+                if (typeof App.saveScheduleSnapshot === "function") {
+                  App.saveScheduleSnapshot("Sandaran Sebelum Segerak Cloud");
+                }
+                const alertBanner = document.getElementById("syncRecoveryAlertBanner");
+                if (alertBanner) alertBanner.style.display = "flex";
               }
 
               this.handleIncomingData(remoteData, "Google Sheets (Cloud)");
               this.state.lastRemoteTimestamp = remoteTimestamp;
               localStorage.setItem("ubk_last_local_update", remoteTimestamp.toString());
               this.updateStatusPill("connected", "Cloud Live (Terkini)");
-
-              // Paparkan banner pemulihan kecemasan jika pengguna ingin kembalikan jadual asal
-              const alertBanner = document.getElementById("syncRecoveryAlertBanner");
-              if (alertBanner) alertBanner.style.display = "flex";
             } else {
               // Jika timestamp sama atau local belum pernah dikemaskini (cth: peranti baharu)
               if (!this.state.hasDoneInitialSync && (!localUpdated || localUpdated === 0)) {
                 this.handleIncomingData(remoteData, "Google Sheets (Cloud)");
+                const ts = remoteTimestamp || Date.now();
+                this.state.lastRemoteTimestamp = ts;
+                localStorage.setItem("ubk_last_local_update", ts.toString());
               }
             }
           }
           this.state.hasDoneInitialSync = true;
-        } else if ((!remoteData || remoteData.length === 0) && this.state.userRole === "admin" && App.state.practicumData && App.state.practicumData.length > 0 && !this.state.hasDoneInitialSync) {
-          // Hanya jika cloud kosong, muat naik jadual sedia ada Cikgu
+        } else if ((!remoteData || remoteData.length === 0) && this.state.userRole === "admin" && App.state.practicumData && App.state.practicumData.length > 0 && !this.state.hasDoneInitialSync && localUpdated > 0) {
+          // Hanya jika cloud kosong DAN pengguna ada data tempatan yang telah dikemaskini (bukan template lalai)
           this.state.hasDoneInitialSync = true;
           await this.uploadToCloud(App.state.practicumData);
         }

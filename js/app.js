@@ -108,12 +108,21 @@ const App = {
           const isRelief = s.isRelief === true || s.type === 'bimbingan' || (s.notes && s.notes.toLowerCase().includes('ganti'));
           if (isRelief || s.type === 'bimbingan') {
             s.isRelief = true;
-            s.clientStatus = 'D/J'; // Status: DIRUJUK (D/J)
-            s.arrivalWay = 'rujukan'; // Cara Rujuk: RUJUKAN
+            // PEMBETULAN: Hanya tetapkan sebagai default jika belum ada nilai — JANGAN TIMPA nilai manual Cikgu!
+            if (!s.clientStatus) s.clientStatus = 'D/J'; // Status: DIRUJUK (D/J)
+            if (!s.arrivalWay) s.arrivalWay = 'rujukan'; // Cara Rujuk: RUJUKAN
             s.focus = this.detectSessionFocus(s.title, s.classTarget, s.notes);
             if (!s.notes || s.notes === '' || s.notes.includes('Kelas ganti guru lain')) {
               s.notes = 'Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru mata pelajaran, diisi dengan aktiviti bimbingan kelompok/kelas.';
             }
+          } else if (s.type === 'penyeliaan' || s.type === 'programLain') {
+            // Penyeliaan Pensyarah / Program Sekolah = masa terisi tapi TIDAK dikira jam perkhidmatan
+            s.isRelief = false;
+            if (!s.clientStatus) s.clientStatus = '-';
+            if (!s.arrivalWay) s.arrivalWay = '-';
+            if (!s.notes) s.notes = s.type === 'penyeliaan'
+              ? 'Penyeliaan daripada pensyarah penyelia - masa ini tidak dikira sebagai jam perkhidmatan UBK.'
+              : 'Program Sekolah / Aktiviti Luar - masa ini tidak dikira sebagai jam perkhidmatan UBK.';
           } else {
             // Auto detect focus untuk semua sesi lain jika belum ditetapkan
             s.focus = this.detectSessionFocus(s.title, s.classTarget, s.notes) || s.focus || 'sahsiah';
@@ -298,11 +307,13 @@ const App = {
         clientSessionTracker[clientKey] = (clientSessionTracker[clientKey] || 0) + 1;
         const currentCount = clientSessionTracker[clientKey];
         const assignedTag = `Sesi ${Math.min(10, currentCount)}`;
+        // PENTING: Hanya tukar clientStatus jika ia bukan 'D/J' (dirujuk/kelas ganti) yang telah ditetapkan manual
         const assignedStatus = (currentCount === 1) ? "B" : "K";
+        const shouldUpdateStatus = s.clientStatus !== 'D/J'; // Jangan timpa D/J yang manual
 
-        if (s.sessionTag !== assignedTag || s.clientStatus !== assignedStatus) {
+        if (s.sessionTag !== assignedTag || (shouldUpdateStatus && s.clientStatus !== assignedStatus)) {
           s.sessionTag = assignedTag;
-          s.clientStatus = assignedStatus;
+          if (shouldUpdateStatus) s.clientStatus = assignedStatus;
           taggedCount++;
         }
       });
@@ -461,7 +472,11 @@ const App = {
     const el = document.getElementById("formSavedClientSelect");
     if (!el) return;
     let html = '<option value="">-- Pilih Klien / Kelompok Tersimpan (Auto-Isi) --</option>';
-    
+
+    const FOCUS_SHORT = { sahsiah:"Sahsiah", disiplin:"⚠️Disiplin", kerjaya:"Kerjaya",
+      psikososial:"Psikososial", akademik:"Akademik", ppda:"PPDa" };
+    const fShort = f => FOCUS_SHORT[f] || f || "";
+
     const indivs = (this.state.savedClients || []).filter(c => c.type === 'individu');
     const groups = (this.state.savedClients || []).filter(c => c.type === 'kelompok');
 
@@ -469,7 +484,9 @@ const App = {
       html += '<optgroup label="👤 Klien Individu (KI)">';
       indivs.forEach(c => {
         const nextTag = this.calcNextSessionTag(c.lastSessionTag);
-        html += `<option value="${c.id}">${c.name} (${c.targetClass || 'Individu'}) [Seterusnya: ${nextTag}]</option>`;
+        const focStr = c.focus ? ` | ${fShort(c.focus)}` : "";
+        const sc = c.sessionCount > 0 ? ` | ${c.sessionCount} sesi` : "";
+        html += `<option value="${c.id}">${c.name} (${c.targetClass || 'Individu'}) → ${nextTag}${focStr}${sc}</option>`;
       });
       html += '</optgroup>';
     }
@@ -478,7 +495,9 @@ const App = {
       html += '<optgroup label="👥 Klien Kelompok (KK)">';
       groups.forEach(c => {
         const nextTag = this.calcNextSessionTag(c.lastSessionTag);
-        html += `<option value="${c.id}">${c.name} (${c.students.length} murid) [Seterusnya: ${nextTag}]</option>`;
+        const focStr = c.focus ? ` | ${fShort(c.focus)}` : "";
+        const sc = c.sessionCount > 0 ? ` | ${c.sessionCount} sesi` : "";
+        html += `<option value="${c.id}">${c.name} (${c.students.length} murid) → ${nextTag}${focStr}${sc}</option>`;
       });
       html += '</optgroup>';
     }
@@ -520,10 +539,15 @@ const App = {
       headcountEl.value = (client.students && client.students.length > 0) ? client.students.length : (client.type === 'individu' ? 1 : 6);
     }
 
-    // 4. Set Fokus Perkhidmatan
-    if (client.focus) {
-      const focusEl = document.getElementById("formFocus");
-      if (focusEl) focusEl.value = client.focus;
+    // 4. Set Fokus Perkhidmatan — Gunakan fokus terkini dari profil (terutama isu disiplin kekal)
+    const focusToUse = client.focus || "sahsiah";
+    const focusEl = document.getElementById("formFocus");
+    if (focusEl) focusEl.value = focusToUse;
+
+    // 4b. Bawa cara hadir terkini dari profil (jika ada)
+    if (client.lastArrivalWay && client.lastArrivalWay !== '-') {
+      const arrivalEl = document.getElementById("formArrivalWay");
+      if (arrivalEl) arrivalEl.value = client.lastArrivalWay;
     }
 
     // 5. Kira dan tetapkan Tag Sesi Seterusnya
@@ -534,10 +558,10 @@ const App = {
       this.handleSessionTagChange(nextSessionTag);
     }
 
-    // 6. Set status klien IPGM (K jika sesi > 1)
+    // 6. Set status klien IPGM (K jika sesi > 1) — gunakan status tersimpan jika ada
     const clientStatusEl = document.getElementById("formClientStatus");
     if (clientStatusEl) {
-      clientStatusEl.value = (nextSessionTag === "Sesi 1") ? "B" : "K";
+      clientStatusEl.value = client.lastClientStatus || ((nextSessionTag === "Sesi 1") ? "B" : "K");
     }
 
     // 7. Auto isi tajuk sesi
@@ -556,7 +580,16 @@ const App = {
 
     this.checkFormConflict();
     this.renderClassSuggestions();
-    this.showToast(`✨ Maklumat ${client.name} (${nextSessionTag}) & waktu persekolahan bebas pertindihan berjaya ditetapkan!`);
+
+    // Papar sejarah sesi sebenar dari jadual (bukan dari profil tersimpan)
+    if (this.state.selectedStudentsInForm && this.state.selectedStudentsInForm.length > 0) {
+      this.applyClientSessionDetection(this.state.selectedStudentsInForm);
+    }
+
+    const focusLabel = { sahsiah:"Sahsiah & Peribadi", disiplin:"Disiplin Diri",
+      kerjaya:"Kerjaya", psikososial:"Psikososial", akademik:"Akademik", ppda:"PPDa" }[focusToUse] || focusToUse;
+    const isDisc = focusToUse === 'disiplin';
+    this.showToast(`${isDisc ? '⚠️' : '✨'} ${client.name} — ${nextSessionTag} | Fokus: ${focusLabel} | Auto-isi selesai!`, null, 5000);
   },
 
   saveCurrentFormAsClientProfile: function() {
@@ -584,16 +617,22 @@ const App = {
     const sessionTag = document.getElementById("formSessionTag")?.value || "Sesi 1";
     const targetClass = document.getElementById("formClassTarget")?.value || students[0].className || "";
     const focus = document.getElementById("formFocus")?.value || "sahsiah";
+    const arrivalWay = document.getElementById("formArrivalWay")?.value || "sukarela";
+    const clientStatus = document.getElementById("formClientStatus")?.value || "B";
+    const sessionNum = parseInt(sessionTag.replace(/[^0-9]/g, '')) || 1;
 
     const newProfile = {
       id: 'client_' + Date.now(),
       name: profileName.trim(),
       type: isIndiv ? 'individu' : 'kelompok',
       targetClass: targetClass,
-      focus: focus,
+      focus: focus,                  // Fokus isu (disiplin, akademik, dll.)
+      lastArrivalWay: arrivalWay,    // Cara hadir terkini
+      lastClientStatus: clientStatus,// Status klien terkini
       students: JSON.parse(JSON.stringify(students)),
       lastSessionTag: sessionTag,
-      sessionCount: 1
+      sessionCount: sessionNum,
+      lastSavedDate: new Date().toLocaleDateString("ms-MY")
     };
 
     if (!Array.isArray(this.state.savedClients)) {
@@ -624,10 +663,13 @@ const App = {
     }
   },
 
-  // Mengesan secara 100% automatik sama ada murid ini Klien Baru (Sesi 1 / B) atau Kes Berulang (Sesi 2 - 10 / K)
+  // =========================================================
+  // SISTEM SEJARAH KLIEN PINTAR — Mengesan siri sesi, isu, fokus & tarikh
+  // =========================================================
   autoDetectClientSessionHistory: function(students, excludeWeek = null, excludeSessionIdx = null) {
     if (!students || students.length === 0) {
-      return { sessionTag: "Sesi 1", clientStatus: "B", sessionCount: 0, isNew: true };
+      return { sessionTag: "Sesi 1", clientStatus: "B", sessionCount: 0, isNew: true,
+               lastFocus: null, lastArrivalWay: null, lastNotes: null, lastSessionDate: null, dominantFocus: null };
     }
 
     const studentKeys = new Set(
@@ -637,10 +679,23 @@ const App = {
       .map(s => String(s.name || s).trim().toUpperCase())
       .filter(n => n.length >= 3);
 
-    let previousCount = 0;
+    // Kumpul semua sesi yang sepadan secara kronologi
+    const matchedSessions = [];
+
     if (this.state.practicumData && Array.isArray(this.state.practicumData)) {
-      this.state.practicumData.forEach(w => {
-        (w.sessions || []).forEach((s, idx) => {
+      // Susun minggu secara kronologi sebelum imbas
+      const sortedWeeks = [...this.state.practicumData].sort((a, b) => a.weekNum - b.weekNum);
+      const dayOrder = { "ISNIN": 1, "SELASA": 2, "RABU": 3, "KHAMIS": 4, "JUMAAT": 5 };
+
+      sortedWeeks.forEach(w => {
+        const sortedSessions = [...(w.sessions || [])].sort((s1, s2) => {
+          const d1 = dayOrder[s1.day] || 99, d2 = dayOrder[s2.day] || 99;
+          if (d1 !== d2) return d1 - d2;
+          return (this.timeToMin ? this.timeToMin(s1.timeStart) : 0) - (this.timeToMin ? this.timeToMin(s2.timeStart) : 0);
+        });
+
+        sortedSessions.forEach((s, idx) => {
+          // Semak sama ada sesi ini ialah sesi sedang diedit — langkau
           if (excludeWeek !== null && w.weekNum === excludeWeek && idx === excludeSessionIdx) return;
           if (s.type !== 'individu' && s.type !== 'kelompok') return;
 
@@ -656,83 +711,189 @@ const App = {
           }
 
           if (match) {
-            previousCount++;
+            // Ambil tarikh sesi daripada jadual minggu
+            const sessionDate = (w.dates && w.dates[s.day]) ? w.dates[s.day] : null;
+            matchedSessions.push({
+              weekNum: w.weekNum,
+              day: s.day,
+              date: sessionDate,
+              sessionTag: s.sessionTag || null,
+              focus: s.focus || null,
+              arrivalWay: s.arrivalWay || null,
+              clientStatus: s.clientStatus || null,
+              notes: s.notes || null,
+              status: s.status || 'belum',
+              timeStart: s.timeStart,
+              title: s.title
+            });
           }
         });
       });
     }
 
+    const previousCount = matchedSessions.length;
+
     if (previousCount === 0) {
       return {
         sessionTag: "Sesi 1",
-        clientStatus: "B", // B - Klien Baru (Pertama Kali)
+        clientStatus: "B",
         sessionCount: 0,
-        isNew: true
-      };
-    } else {
-      const nextNum = Math.min(10, previousCount + 1);
-      return {
-        sessionTag: `Sesi ${nextNum}`,
-        clientStatus: "K", // K - Kes Berulang / Lanjutan
-        sessionCount: previousCount,
-        isNew: false
+        isNew: true,
+        lastFocus: null,
+        lastArrivalWay: null,
+        lastNotes: null,
+        lastSessionDate: null,
+        dominantFocus: null,
+        allSessions: []
       };
     }
+
+    // Ambil sesi terakhir untuk kesinambungan data
+    const lastSess = matchedSessions[matchedSessions.length - 1];
+
+    // Kira fokus yang paling kerap (dominan) merentasi semua sesi
+    const focusCount = {};
+    matchedSessions.forEach(s => {
+      if (s.focus) focusCount[s.focus] = (focusCount[s.focus] || 0) + 1;
+    });
+    const dominantFocus = Object.keys(focusCount).length > 0
+      ? Object.keys(focusCount).reduce((a, b) => focusCount[a] >= focusCount[b] ? a : b)
+      : null;
+
+    // Fokus yang akan digunakan: gunakan fokus terkini jika konsisten, atau fokus dominan
+    // Jika sesi terakhir ialah disiplin, kekalkan disiplin untuk sesi seterusnya
+    const effectiveFocus = lastSess.focus || dominantFocus;
+
+    const nextNum = Math.min(10, previousCount + 1);
+    return {
+      sessionTag: `Sesi ${nextNum}`,
+      clientStatus: "K",
+      sessionCount: previousCount,
+      isNew: false,
+      // Data sesi terakhir untuk kesinambungan
+      lastFocus: lastSess.focus,
+      lastArrivalWay: lastSess.arrivalWay,
+      lastClientStatus: lastSess.clientStatus,
+      lastNotes: lastSess.notes,
+      lastSessionDate: lastSess.date,
+      lastWeekNum: lastSess.weekNum,
+      lastDay: lastSess.day,
+      // Analisis merentasi semua sesi
+      dominantFocus: dominantFocus,
+      effectiveFocus: effectiveFocus,
+      focusCounts: focusCount,
+      allSessions: matchedSessions
+    };
   },
 
   applyClientSessionDetection: function(students) {
+    const noticeEl = document.getElementById("clientAutoDetectNotice");
     if (!students || students.length === 0) {
-      const noticeEl = document.getElementById("clientAutoDetectNotice");
-      if (noticeEl) {
-        noticeEl.style.display = "none";
-        noticeEl.innerHTML = "";
-      }
+      if (noticeEl) { noticeEl.style.display = "none"; noticeEl.innerHTML = ""; }
       return;
     }
+
     const editingIdx = this.state.editingSessionIndex !== null ? this.state.editingSessionIndex : null;
-    const editingWeek = this.state.editingWeek !== null ? this.state.editingWeek : this.state.currentWeek;
-    const detection = this.autoDetectClientSessionHistory(students, editingWeek, editingIdx);
+    const editingWeek = this.state.editingWeek !== null ? this.state.editingWeek : null;
+    const det = this.autoDetectClientSessionHistory(students, editingWeek, editingIdx);
 
+    // 1. TAG SESI
     const tagEl = document.getElementById("formSessionTag");
-    if (tagEl) {
-      tagEl.value = detection.sessionTag;
-    }
+    if (tagEl) tagEl.value = det.sessionTag;
+
+    // 2. STATUS KLIEN
     const statusEl = document.getElementById("formClientStatus");
-    if (statusEl) {
-      statusEl.value = detection.clientStatus;
+    if (statusEl) statusEl.value = det.clientStatus;
+
+    // 3. BAWA FOKUS TERDAHULU — isu disiplin kekal automatik
+    if (!det.isNew && det.effectiveFocus) {
+      const focusEl = document.getElementById("formFocus");
+      if (focusEl && (!focusEl.value || focusEl.value === "sahsiah")) {
+        focusEl.value = det.effectiveFocus;
+      }
     }
 
-    // Auto kemaskini tajuk jika bersesuaian
+    // 4. BAWA CARA HADIR TERDAHULU
+    if (!det.isNew && det.lastArrivalWay && det.lastArrivalWay !== '-') {
+      const arrivalEl = document.getElementById("formArrivalWay");
+      if (arrivalEl && arrivalEl.value === "sukarela") {
+        arrivalEl.value = det.lastArrivalWay;
+      }
+    }
+
+    // 5. AUTO TAJUK SESI
     const titleEl = document.getElementById("formTitle");
-    const typeEl = document.getElementById("formType");
-    const currentType = typeEl ? typeEl.value : "individu";
-
-    if (titleEl && (!titleEl.value || titleEl.value.startsWith("KI - ") || titleEl.value.startsWith("Kelompok - ") || titleEl.value.startsWith("KI") || titleEl.value.startsWith("Bimbingan"))) {
+    const currentType = document.getElementById("formType")?.value || "individu";
+    if (titleEl && (!titleEl.value || /^KI\s*[-–]|^Kelompok\s*[-–]|^KI\s*0/i.test(titleEl.value))) {
       const isIndiv = (currentType === "individu" || students.length === 1);
-      const studentName = students[0].name || students[0];
       if (isIndiv) {
-        titleEl.value = `KI - ${studentName} (${detection.sessionTag})`;
+        titleEl.value = `KI - ${students[0].name || students[0]} (${det.sessionTag})`;
       } else {
-        const cls = students[0].className || "";
-        titleEl.value = `Kelompok - Kelas ${cls} (${detection.sessionTag})`;
+        titleEl.value = `Kelompok - Kelas ${students[0].className || ""} (${det.sessionTag})`;
       }
     }
 
-    // Paparkan notis automatik kepada kaunselor
-    const noticeEl = document.getElementById("clientAutoDetectNotice");
-    if (noticeEl) {
-      noticeEl.style.display = "block";
-      if (detection.isNew) {
-        noticeEl.style.background = "#f0fdf4";
-        noticeEl.style.borderColor = "#86efac";
-        noticeEl.style.color = "#166534";
-        noticeEl.innerHTML = `✨ <strong>Auto-Kesan Pintar:</strong> Murid ini dikesan sebagai <strong>KLIEN BARU</strong>. Ditetapkan ke <strong>${detection.sessionTag}</strong> (Status B - Klien Baru) secara automatik tanpa perlu ditekan manual!`;
-      } else {
-        noticeEl.style.background = "#eff6ff";
-        noticeEl.style.borderColor = "#93c5fd";
-        noticeEl.style.color = "#1e40af";
-        noticeEl.innerHTML = `✨ <strong>Auto-Kesan Pintar:</strong> Murid ini dikesan pernah menjalani <strong>${detection.sessionCount} sesi</strong> sebelum ini. Ditetapkan ke <strong>${detection.sessionTag}</strong> (Status K - Kes Berulang) secara automatik!`;
-      }
+    // 6. PAPAN SEJARAH KLIEN PINTAR
+    if (!noticeEl) return;
+    noticeEl.style.display = "block";
+
+    const FOCUS_LABELS = { sahsiah:"Sahsiah & Peribadi", disiplin:"Disiplin Diri",
+      kerjaya:"Kerjaya", psikososial:"Psikososial", akademik:"Akademik", ppda:"PPDa" };
+    const fLbl = f => FOCUS_LABELS[f] || f || "-";
+
+    if (det.isNew) {
+      noticeEl.style.cssText = "display:block;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:0.65rem 0.85rem;margin-bottom:0.75rem;font-size:0.82rem;";
+      noticeEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;font-weight:700;color:#166534;">
+          ✨ KLIEN BARU
+          <span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 8px;font-size:0.75rem;">${det.sessionTag}</span>
+          <span style="background:#bbf7d0;color:#14532d;border-radius:4px;padding:1px 8px;font-size:0.75rem;">Status: B</span>
+        </div>
+        <div style="color:#15803d;font-size:0.77rem;margin-top:3px;">Tiada rekod sesi terdahulu. Ini adalah perkhidmatan pertama untuk murid ini.</div>`;
+    } else {
+      const isDisc = (det.lastFocus === 'disiplin' || det.dominantFocus === 'disiplin');
+      const bg = isDisc ? "#fef3c7" : "#eff6ff";
+      const bd = isDisc ? "#fcd34d" : "#93c5fd";
+      const tc = isDisc ? "#92400e" : "#1e40af";
+
+      const rows = det.allSessions.map((s, i) => {
+        const dt = s.date || `Minggu ${s.weekNum}, ${s.day}`;
+        const ic = s.status === 'selesai' ? '✅' : s.status === 'tunda' ? '⏸️' : '🔵';
+        const isD = s.focus === 'disiplin';
+        return `<tr style="font-size:0.72rem;${i%2===0?'background:#f8fafc;':''}">
+          <td style="padding:2px 6px;color:#64748b;">${ic} ${dt}</td>
+          <td style="padding:2px 6px;font-weight:700;">Sesi ${i+1}</td>
+          <td style="padding:2px 6px;color:${isD?'#b45309':'#334155'};font-weight:${isD?'700':'400'};">${fLbl(s.focus)}</td>
+          <td style="padding:2px 6px;color:#64748b;">${s.arrivalWay||'-'}</td>
+        </tr>`;
+      }).join('');
+
+      const focusNote = det.effectiveFocus ? `
+        <div style="margin-top:5px;padding:4px 8px;background:${isDisc?'#fef9c3':'#dbeafe'};border-radius:5px;font-size:0.76rem;font-weight:700;color:${isDisc?'#854d0e':'#1e40af'};">
+          ${isDisc ? '⚠️' : '🔁'} Fokus <strong>${fLbl(det.effectiveFocus)}</strong> dibawa ke sesi ini secara automatik${isDisc?' — isu disiplin, sila tindakan lanjut!':'.'}
+        </div>` : '';
+
+      noticeEl.style.cssText = `display:block;background:${bg};border:1.5px solid ${bd};border-radius:8px;padding:0.65rem 0.85rem;margin-bottom:0.75rem;font-size:0.82rem;color:${tc};`;
+      noticeEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;font-weight:700;flex-wrap:wrap;margin-bottom:5px;">
+          <span>${isDisc ? '⚠️ ISU DISIPLIN' : '📋 KES BERULANG'}</span>
+          <span style="background:${isDisc?'#fde68a':'#bfdbfe'};color:${isDisc?'#78350f':'#1e3a8a'};border-radius:4px;padding:1px 8px;font-size:0.75rem;">${det.sessionTag}</span>
+          <span style="background:${isDisc?'#fed7aa':'#bfdbfe'};color:${isDisc?'#7c2d12':'#1e40af'};border-radius:4px;padding:1px 8px;font-size:0.75rem;">Status: K</span>
+          <span style="font-weight:400;font-size:0.75rem;color:#64748b;">Sesi terakhir: ${det.lastSessionDate || (det.lastWeekNum ? 'Minggu '+det.lastWeekNum : '-')}</span>
+        </div>
+        <details style="cursor:pointer;">
+          <summary style="font-size:0.78rem;font-weight:700;color:${tc};">📜 Lihat sejarah ${det.sessionCount} sesi terdahulu</summary>
+          <table style="width:100%;border-collapse:collapse;margin-top:5px;">
+            <thead><tr style="background:${isDisc?'#fef3c7':'#e0e7ff'};font-size:0.71rem;font-weight:700;">
+              <th style="padding:2px 6px;text-align:left;">Tarikh</th>
+              <th style="padding:2px 6px;">Siri</th>
+              <th style="padding:2px 6px;">Fokus Isu</th>
+              <th style="padding:2px 6px;">Cara Hadir</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </details>
+        ${focusNote}`;
     }
   },
 
@@ -839,7 +1000,7 @@ const App = {
     } else {
       const shown = todaySessions.slice(0, 4);
       sessionListHtml = shown.map(s => {
-        const typeIcon = {individu:'🟢', kelompok:'🔵', bimbingan:'🟣', program:'🟡', pentadbiran:'🔷', cuti:'🔴'}[s.type] || '⚪';
+        const typeIcon = {individu:'🟢', kelompok:'🔵', bimbingan:'🟣', program:'🟡', pentadbiran:'🔷', cuti:'🔴', penyeliaan:'⬜', programLain:'🔶'}[s.type] || '⚪';
         const statusIcon = s.status === 'selesai' ? '✓' : (s.status === 'tunda' ? '✗' : '•');
         return `<div class="today-session-item">
           <span class="time-chip">${s.timeStart}–${s.timeEnd}</span>
@@ -882,6 +1043,10 @@ const App = {
   // TOAST NOTIFICATION DENGAN UNDO SUPPORT
   // =========================================================
   showToast: function(message, undoFn, durationMs, undoLabel) {
+    // Penormalan parameter: jika undoFn ialah nombor, anggap ia sebagai durationMs
+    if (typeof undoFn === 'number') { durationMs = undoFn; undoFn = null; }
+    if (typeof undoFn !== 'function') undoFn = null;
+
     const toast = document.getElementById("toastNotification");
     if (!toast) return;
 
@@ -3180,6 +3345,8 @@ const App = {
 
       w.sessions.forEach(s => {
         const dur = timeToMin(s.timeEnd) - timeToMin(s.timeStart);
+        // PENTING: 'penyeliaan' dan 'programLain' TIDAK dikira dalam mana-mana jam
+        if (s.type === 'penyeliaan' || s.type === 'programLain') return;
         if (dur > 0 && dur <= 480) {
           if (s.type === 'individu') {
             wKIMin += dur; wKI++;
@@ -3475,7 +3642,10 @@ const App = {
         const isDirect = ['individu', 'kelompok', 'bimbingan'].includes(s.type);
         const logCategory = isDirect ? 'Intervensi Langsung (Direct Contact)' 
           : (s.type === 'pentadbiran' ? 'Pentadbiran & Pengurusan (Indirect)' 
-          : (s.type === 'program' ? 'Program Sekolah' : 'Cuti/Pelepasan'));
+          : (s.type === 'program' ? 'Program Kaunseling Berfokus'
+          : (s.type === 'penyeliaan' ? 'Penyeliaan Pensyarah (Tidak Dikira)'
+          : (s.type === 'programLain' ? 'Program Sekolah Lain (Tidak Dikira)'
+          : 'Cuti/Pelepasan'))));
         
         const durMin = Math.max(0, timeToMin(s.timeEnd) - timeToMin(s.timeStart));
         const autoDocMin = isDirect ? docRate : 0;
@@ -4309,6 +4479,9 @@ const App = {
     document.getElementById("formDay").value = day;
     document.getElementById("formSessionIndex").value = "-1";
     document.getElementById("formStatus").value = "belum";
+    // Reset editing state supaya auto-detect tidak terpilih kad sesi lama
+    this.state.editingWeek = null;
+    this.state.editingSessionIndex = null;
 
     document.getElementById("formTimeStart").value = defaultStart || "08.10";
     document.getElementById("formTimeEnd").value = defaultEnd || "08.40";
@@ -4377,6 +4550,9 @@ const App = {
       this.showToast("👁️ Mod Paparan Awam (Semakan Sahaja). Log masuk Kaunselor untuk mengubah.", null, 3500);
       return;
     }
+    // Simpan kedudukan sesi yang sedang diedit supaya auto-detect tidak kira sesi ini sendiri
+    this.state.editingWeek = weekNum;
+    this.state.editingSessionIndex = sessionIdx;
     const weekData = this.state.practicumData.find(w => w.weekNum === weekNum);
     if (!weekData) return;
     const session = weekData.sessions[sessionIdx];
@@ -4482,16 +4658,27 @@ const App = {
         headcountEl.value = "6";
       } else if (type === "bimbingan" && (!headcountEl.value || headcountEl.value === "1" || headcountEl.value === "6")) {
         headcountEl.value = "28";
-      } else if (type === "pentadbiran" || type === "cuti") {
+      } else if (type === "pentadbiran" || type === "cuti" || type === "penyeliaan" || type === "programLain") {
         headcountEl.value = "0";
       }
     }
+
+    // Papar/sembunyi blok murid berdasarkan jenis sesi
+    const studentSection = document.getElementById("studentSelectionSection");
+    const isNonStudentType = (type === "pentadbiran" || type === "cuti" || type === "penyeliaan" || type === "programLain" || type === "konsultasi");
+    if (studentSection) studentSection.style.display = isNonStudentType ? "none" : "";
 
     if (type === "bimbingan") {
       const reliefEl = document.getElementById("formIsRelief");
       if (reliefEl) reliefEl.checked = true;
       const reliefContainer = document.getElementById("reliefToggleContainer");
       if (reliefContainer) reliefContainer.style.display = "block";
+    }
+
+    // Sembunyi toggle relief bagi jenis bukan kaunseling
+    if (type === "penyeliaan" || type === "programLain" || type === "cuti") {
+      const reliefContainer = document.getElementById("reliefToggleContainer");
+      if (reliefContainer) reliefContainer.style.display = "none";
     }
 
     this.handleSmartTitleAndReliefDetection();
@@ -4669,6 +4856,9 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
 
   closeModal: function() {
     document.getElementById("sessionModal").classList.remove("active");
+    // Reset state editing supaya tidak ada kesan pada operasi seterusnya
+    this.state.editingWeek = null;
+    this.state.editingSessionIndex = null;
   },
 
   handleSaveSession: function() {
@@ -4807,14 +4997,23 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
       isRelief
     };
 
-    // Kemaskini siri sesi terakhir bagi profil klien tersimpan (jika sepadan)
-    if (sessionTag && students.length > 0 && Array.isArray(this.state.savedClients)) {
+    // Kemaskini profil klien tersimpan dengan semua maklumat terkini (fokus, cara hadir, status, siri sesi)
+    if (students.length > 0 && Array.isArray(this.state.savedClients)) {
       const matchedProfile = this.state.savedClients.find(c => {
-        if (!c.students || c.students.length !== students.length) return false;
-        return c.students.every(cs => students.some(s => (s.id && s.id === cs.id) || (s.name && s.name === cs.name)));
+        if (!c.students || c.students.length === 0) return false;
+        // Cari sepadan berdasarkan ID murid atau nama murid
+        return c.students.some(cs => students.some(s =>
+          (s.id && cs.id && s.id === cs.id) || (s.name && cs.name && s.name.toUpperCase() === cs.name.toUpperCase())
+        ));
       });
       if (matchedProfile) {
-        matchedProfile.lastSessionTag = sessionTag;
+        // Simpan semua maklumat terkini ke dalam profil
+        if (sessionTag) matchedProfile.lastSessionTag = sessionTag;
+        matchedProfile.focus = focus; // Fokus isu terkini (disiplin, akademik, dll.)
+        matchedProfile.lastArrivalWay = arrivalWay; // Cara hadir terkini
+        matchedProfile.lastClientStatus = clientStatus; // Status klien terkini
+        matchedProfile.lastSavedDate = new Date().toLocaleDateString("ms-MY");
+        matchedProfile.sessionCount = (matchedProfile.sessionCount || 0) + (sessionIdx === -1 ? 1 : 0);
         this.saveSavedClients();
       }
     }
