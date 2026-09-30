@@ -1091,84 +1091,87 @@
             </div>
           </div>
 
-          <!-- Pilihan Klien / Kelompok Tersimpan & Siri Sesi (Sesi 1 - 10) -->
-          <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 1rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 4px;">
-              <label class="form-label" style="margin-bottom: 0; font-weight: 800; color: #166534;" for="formSavedClientSelect">
-                ⚡ Klien / Kelompok Tersimpan (Auto-Isi Sesi):
-              </label>
-              <button type="button" class="btn btn-sm" onclick="App.saveCurrentFormAsClientProfile()" style="background: #15803d; color: white; font-size: 0.72rem; padding: 3px 8px; font-weight: 700; border-radius: 4px;" title="Simpan murid yang dipilih sebagai profil klien berulang">
-                💾 Simpan Klien/Kelompok Semasa
-              </button>
-            </div>
-            <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px;">
-              <select id="formSavedClientSelect" class="form-control" style="font-size: 0.8rem; padding: 5px 8px; font-weight: 700; border-color: #86efac;" onchange="App.applySavedClientToForm(this.value)">
-                <option value="">-- Pilih Klien / Kelompok Tersimpan (Auto-Isi) --</option>
-              </select>
-              <select id="formSessionTag" class="form-control" style="font-size: 0.8rem; padding: 5px 8px; font-weight: 700; border-color: #facc15; background: #fefce8; color: #854d0e;" onchange="App.handleSessionTagChange(this.value)">
-                <option value="">🏷️ Tiada Tag Sesi</option>
-                <option value="Sesi 1">🏷️ Sesi 1 (Pertama Kali)</option>
-                <option value="Sesi 2">🏷️ Sesi 2</option>
-                <option value="Sesi 3">🏷️ Sesi 3</option>
-                <option value="Sesi 4">🏷️ Sesi 4</option>
-                <option value="Sesi 5">🏷️ Sesi 5</option>
-                <option value="Sesi 6">🏷️ Sesi 6</option>
-                <option value="Sesi 7">🏷️ Sesi 7</option>
-                <option value="Sesi 8">🏷️ Sesi 8</option>
-                <option value="Sesi 9">🏷️ Sesi 9</option>
-                <option value="Sesi 10">🏷️ Sesi 10 (Penamatan)</option>
-              </select>
-            </div>
-            <div style="font-size: 0.72rem; color: #166534; margin-top: 4px;">
-              💡 <em>Pilih klien/kelompok di atas untuk auto-masukkan senarai murid, kelas &amp; nombor sesi seterusnya secara automatik!</em>
-            </div>
-            <!-- Notis Pengesanan Pintar Klien & Sesi -->
-            <div id="clientAutoDetectNotice" style="display: none; font-size: 0.76rem; margin-top: 6px; padding: 6px 10px; border-radius: 6px; background: #f0fdf4; color: #166534; border: 1.5px solid #86efac; font-weight: 600;"></div>
-          </div>
-
-          <!-- Pemilih Murid Pintar (Klien) dari Pangkalan Data 429 Murid Google Sheet -->
-          <div class="student-picker-container" style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 1rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 4px;">
-              <label class="form-label" style="margin-bottom: 0; font-weight: 700; color: #1e3a8a;" for="formStudentSearch">
-                👥 Pilih Murid / Klien (Senarai 429 Murid SK Tampasuk 1):
-              </label>
-              <span style="font-size: 0.72rem; color: #15803d; font-weight: 700; background: #dcfce7; padding: 1px 6px; border-radius: 4px;">
-                ✓ Disegerak Google Sheet
-              </span>
+          <!-- Bahagian Pemilihan Murid & Klien (Auto-Sembunyi jika jenis bukan murid cth: pentadbiran/cuti/penyeliaan/programLain) -->
+          <div id="studentSelectionSection">
+            <!-- Pilihan Klien / Kelompok Tersimpan & Siri Sesi (Sesi 1 - 10) -->
+            <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 4px;">
+                <label class="form-label" style="margin-bottom: 0; font-weight: 800; color: #166534;" for="formSavedClientSelect">
+                  ⚡ Klien / Kelompok Tersimpan (Auto-Isi Sesi):
+                </label>
+                <button type="button" class="btn btn-sm" onclick="App.saveCurrentFormAsClientProfile()" style="background: #15803d; color: white; font-size: 0.72rem; padding: 3px 8px; font-weight: 700; border-radius: 4px;" title="Simpan murid yang dipilih sebagai profil klien berulang">
+                  💾 Simpan Klien/Kelompok Semasa
+                </button>
+              </div>
+              <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px;">
+                <select id="formSavedClientSelect" class="form-control" style="font-size: 0.8rem; padding: 5px 8px; font-weight: 700; border-color: #86efac;" onchange="App.applySavedClientToForm(this.value)">
+                  <option value="">-- Pilih Klien / Kelompok Tersimpan (Auto-Isi) --</option>
+                </select>
+                <select id="formSessionTag" class="form-control" style="font-size: 0.8rem; padding: 5px 8px; font-weight: 700; border-color: #facc15; background: #fefce8; color: #854d0e;" onchange="App.handleSessionTagChange(this.value)">
+                  <option value="">🏷️ Tiada Tag Sesi</option>
+                  <option value="Sesi 1">🏷️ Sesi 1 (Pertama Kali)</option>
+                  <option value="Sesi 2">🏷️ Sesi 2</option>
+                  <option value="Sesi 3">🏷️ Sesi 3</option>
+                  <option value="Sesi 4">🏷️ Sesi 4</option>
+                  <option value="Sesi 5">🏷️ Sesi 5</option>
+                  <option value="Sesi 6">🏷️ Sesi 6</option>
+                  <option value="Sesi 7">🏷️ Sesi 7</option>
+                  <option value="Sesi 8">🏷️ Sesi 8</option>
+                  <option value="Sesi 9">🏷️ Sesi 9</option>
+                  <option value="Sesi 10">🏷️ Sesi 10 (Penamatan)</option>
+                </select>
+              </div>
+              <div style="font-size: 0.72rem; color: #166534; margin-top: 4px;">
+                💡 <em>Pilih klien/kelompok di atas untuk auto-masukkan senarai murid, kelas &amp; nombor sesi seterusnya secara automatik!</em>
+              </div>
+              <!-- Notis Pengesanan Pintar Klien & Sesi -->
+              <div id="clientAutoDetectNotice" style="display: none; font-size: 0.76rem; margin-top: 6px; padding: 6px 10px; border-radius: 6px; background: #f0fdf4; color: #166534; border: 1.5px solid #86efac; font-weight: 600;"></div>
             </div>
 
-            <!-- Tapis mengikut Kelas & Butang Pilih Semua -->
-            <div style="display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;">
-              <select id="formStudentClassFilter" class="form-control" style="font-size: 0.8rem; padding: 5px 8px; font-weight: 600; flex: 1; min-width: 170px;" onchange="App.handleStudentClassFilterChange(this.value)">
-                <option value="">-- Tapis Mengikut Kelas (Semua 429 Murid) --</option>
-                <option value="1A">1 ARIF (1A)</option>
-                <option value="1B">1 BESTARI (1B)</option>
-                <option value="2A">2 ARIF (2A)</option>
-                <option value="2B">2 BESTARI (2B)</option>
-                <option value="3A">3 ARIF (3A)</option>
-                <option value="3B">3 BESTARI (3B)</option>
-                <option value="4A">4 ARIF (4A)</option>
-                <option value="4B">4 BESTARI (4B)</option>
-                <option value="5A">5 ARIF (5A)</option>
-                <option value="5B">5 BESTARI (5B)</option>
-                <option value="6A">6 ARIF (6A)</option>
-                <option value="6B">6 BESTARI (6B)</option>
-                <option value="PRA ANGGERIK">PRA ANGGERIK</option>
-                <option value="PRA DAHLIA">PRA DAHLIA</option>
-              </select>
-              <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.75rem; white-space: nowrap; padding: 4px 10px;" onclick="App.addAllStudentsFromFilter()">
-                ➕ Masukkan Semua Murid Kelas
-              </button>
-            </div>
+            <!-- Pemilih Murid Pintar (Klien) dari Pangkalan Data 429 Murid Google Sheet -->
+            <div class="student-picker-container" style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 4px;">
+                <label class="form-label" style="margin-bottom: 0; font-weight: 700; color: #1e3a8a;" for="formStudentSearch">
+                  👥 Pilih Murid / Klien (Senarai 429 Murid SK Tampasuk 1):
+                </label>
+                <span style="font-size: 0.72rem; color: #15803d; font-weight: 700; background: #dcfce7; padding: 1px 6px; border-radius: 4px;">
+                  ✓ Disegerak Google Sheet
+                </span>
+              </div>
 
-            <div style="position: relative;">
-              <input type="text" id="formStudentSearch" class="form-control" placeholder="🔍 Taip nama murid atau No. IC untuk cari & pilih..." autocomplete="off" oninput="App.handleStudentSearch(this.value)">
-              <div id="studentSearchResults" class="student-search-results" style="display: none;"></div>
+              <!-- Tapis mengikut Kelas & Butang Pilih Semua -->
+              <div style="display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;">
+                <select id="formStudentClassFilter" class="form-control" style="font-size: 0.8rem; padding: 5px 8px; font-weight: 600; flex: 1; min-width: 170px;" onchange="App.handleStudentClassFilterChange(this.value)">
+                  <option value="">-- Tapis Mengikut Kelas (Semua 429 Murid) --</option>
+                  <option value="1A">1 ARIF (1A)</option>
+                  <option value="1B">1 BESTARI (1B)</option>
+                  <option value="2A">2 ARIF (2A)</option>
+                  <option value="2B">2 BESTARI (2B)</option>
+                  <option value="3A">3 ARIF (3A)</option>
+                  <option value="3B">3 BESTARI (3B)</option>
+                  <option value="4A">4 ARIF (4A)</option>
+                  <option value="4B">4 BESTARI (4B)</option>
+                  <option value="5A">5 ARIF (5A)</option>
+                  <option value="5B">5 BESTARI (5B)</option>
+                  <option value="6A">6 ARIF (6A)</option>
+                  <option value="6B">6 BESTARI (6B)</option>
+                  <option value="PRA ANGGERIK">PRA ANGGERIK</option>
+                  <option value="PRA DAHLIA">PRA DAHLIA</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.75rem; white-space: nowrap; padding: 4px 10px;" onclick="App.addAllStudentsFromFilter()">
+                  ➕ Masukkan Semua Murid Kelas
+                </button>
+              </div>
+
+              <div style="position: relative;">
+                <input type="text" id="formStudentSearch" class="form-control" placeholder="🔍 Taip nama murid atau No. IC untuk cari & pilih..." autocomplete="off" oninput="App.handleStudentSearch(this.value)">
+                <div id="studentSearchResults" class="student-search-results" style="display: none;"></div>
+              </div>
+              <!-- Paparan Murid Terpilih (Chips) -->
+              <div id="selectedStudentsContainer" class="selected-students-container" style="display: none; margin-top: 0.5rem;"></div>
+              <input type="hidden" id="formStudentNames" value="">
+              <input type="hidden" id="formStudentICs" value="">
             </div>
-            <!-- Paparan Murid Terpilih (Chips) -->
-            <div id="selectedStudentsContainer" class="selected-students-container" style="display: none; margin-top: 0.5rem;"></div>
-            <input type="hidden" id="formStudentNames" value="">
-            <input type="hidden" id="formStudentICs" value="">
           </div>
 
           <div class="form-group">

@@ -1357,10 +1357,9 @@ const App = {
                     <span style="font-size: 0.82rem;">👤</span>
                     <span style="font-weight: 800; color: #1e3a8a; font-size: 0.75rem;">
                       ${s.students.length === 1 
-                        ? (s.students[0].name || s.students[0]) 
-                        : `${s.students.length} Murid: ${s.students.slice(0, 2).map(m => m.name || m).join(', ')}${s.students.length > 2 ? '...' : ''}`}
+                        ? `${s.students[0].name || s.students[0]}${s.students[0].className ? ' (' + s.students[0].className + ')' : ''}` 
+                        : `${s.students.length} Murid: ${s.students.slice(0, 2).map(m => (m.name || m) + (m.className ? ' (' + m.className + ')' : '')).join(', ')}${s.students.length > 2 ? '...' : ''}`}
                     </span>
-                    ${(s.students.length === 1 && s.students[0].ic) ? `<span class="ic-badge" style="font-size: 0.65rem; padding: 0 4px;">🪪 ${s.students[0].ic}</span>` : ''}
                   </div>
                   <span class="badge-edit-client">✏️ Tukar</span>
                 </div>
@@ -2538,7 +2537,6 @@ const App = {
             <span><strong>Nama Klien / Murid:</strong> <span style="color:#1e3a8a; font-weight:800;">${studentNames}</span></span>
           </div>
           <div class="slip-row">
-            <span><strong>No. Kad Pengenalan:</strong> <span style="font-family:monospace; font-weight:700;">${studentICs}</span></span>
             <span><strong>Kelas:</strong> <strong>${finalClass}</strong></span>
           </div>
           <div class="slip-row">
@@ -3357,7 +3355,7 @@ const App = {
           } else if (s.type === 'bimbingan') {
             wBimMin += dur; wBim++;
             totalBimbinganMin += dur; totalBimbinganSessions++;
-          } else if (s.type === 'pentadbiran') {
+          } else if (s.type === 'pentadbiran' || s.type === 'konsultasi') {
             wAdminSchedMin += dur; wAdminSched++;
             totalAdminSchedMin += dur; totalAdminSchedSessions++;
           } else if (s.type === 'program') {
@@ -3372,6 +3370,9 @@ const App = {
       const wAutoDocMin = wDirectSessions * docRate;
       const wAdminTotalMin = wAdminSchedMin + wAutoDocMin;
       const weekTotalMin = wKIMin + wKelMin + wBimMin + wAdminTotalMin + wProgMin;
+
+      // Sesi aktif sebenar (tidak termasuk cuti, penyeliaan atau program luar)
+      const activeSessionsCount = w.sessions.filter(s => s.type !== 'cuti' && s.type !== 'penyeliaan' && s.type !== 'programLain').length;
 
       weeklyBreakdown.push({
         weekNum: w.weekNum,
@@ -3395,7 +3396,7 @@ const App = {
         adminTotalHours: (wAdminTotalMin / 60).toFixed(1),
         autoDocHours: (wAutoDocMin / 60).toFixed(1),
         adminSchedHours: (wAdminSchedMin / 60).toFixed(1),
-        totalSessions: w.sessions.length
+        totalSessions: activeSessionsCount
       });
     });
 
@@ -3627,7 +3628,7 @@ const App = {
   // =========================================================
   exportToExcelCSV: function() {
     let csvContent = "\uFEFF"; // Byte Order Mark (BOM) untuk sokongan UTF-8 di Excel
-    csvContent += "Minggu,Tarikh Minggu,Hari,Tarikh Harian,Masa Mula,Masa Tamat,Jenis Sesi,Kategori Buku Log,Masa Sesi (Minit),Dokumentasi Automatik (Minit),Tajuk Aktiviti,Nama Klien (Murid),No. Kad Pengenalan (IC),Kelas Sasaran,Bil. Klien,Status,Nota\n";
+    csvContent += "Minggu,Tarikh Minggu,Hari,Tarikh Harian,Masa Mula,Masa Tamat,Jenis Sesi,Kategori Buku Log,Masa Sesi (Minit),Dokumentasi Automatik (Minit),Tajuk Aktiviti,Nama Klien (Murid),Kelas Sasaran,Bil. Klien,Status,Nota\n";
 
     const docRate = typeof this.state.docRate === 'number' ? this.state.docRate : 30;
     const timeToMin = (t) => this.timeToMin(t);
@@ -3636,16 +3637,19 @@ const App = {
       w.sessions.forEach(s => {
         const dateStr = (w.dates && w.dates[s.day]) || "";
         const statusLabel = s.status === 'selesai' ? 'Selesai' : (s.status === 'tunda' ? 'Ditunda' : 'Belum Selesai');
-        const studentNames = (s.students && s.students.length > 0) ? s.students.map(m => m.name).join('; ') : '-';
-        const studentICs = (s.students && s.students.length > 0) ? s.students.map(m => m.ic).join('; ') : '-';
+        // Nama & kelas sahaja — tiada IC (Etika Kerahsiaan)
+        const studentNames = (s.students && s.students.length > 0)
+          ? s.students.map(m => `${m.name || m}${m.className ? ' (' + m.className + ')' : ''}`).join('; ')
+          : '-';
         
         const isDirect = ['individu', 'kelompok', 'bimbingan'].includes(s.type);
         const logCategory = isDirect ? 'Intervensi Langsung (Direct Contact)' 
           : (s.type === 'pentadbiran' ? 'Pentadbiran & Pengurusan (Indirect)' 
+          : (s.type === 'konsultasi' ? 'Konsultasi Guru / Ibu Bapa (Indirect)'
           : (s.type === 'program' ? 'Program Kaunseling Berfokus'
           : (s.type === 'penyeliaan' ? 'Penyeliaan Pensyarah (Tidak Dikira)'
           : (s.type === 'programLain' ? 'Program Sekolah Lain (Tidak Dikira)'
-          : 'Cuti/Pelepasan'))));
+          : 'Cuti/Pelepasan')))));
         
         const durMin = Math.max(0, timeToMin(s.timeEnd) - timeToMin(s.timeStart));
         const autoDocMin = isDirect ? docRate : 0;
@@ -3663,7 +3667,6 @@ const App = {
           `"${autoDocMin}"`,
           `"${(s.title || '').replace(/"/g, '""')}"`,
           `"${studentNames.replace(/"/g, '""')}"`,
-          `"${studentICs.replace(/"/g, '""')}"`,
           `"${(s.classTarget || '-').replace(/"/g, '""')}"`,
           `"${s.headcount || 1}"`,
           `"${statusLabel}"`,
@@ -5285,24 +5288,14 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
         `;
       } else if (item.type === 'kosong') {
         rowsHtml += `
-          <tr class="row-kosong" style="background: #f0fdf4;">
-            <td style="text-align: center; font-weight: bold; border: 1.5px solid #334155; padding: 8px 6px; vertical-align: middle; color: #15803d;">🟢</td>
-            <td style="text-align: center; font-weight: 800; color: #15803d; border: 1.5px solid #334155; padding: 8px; font-size: 9.5pt; vertical-align: middle; white-space: nowrap;">
-              ⏱️ ${item.timeStart} - ${item.timeEnd}
+          <tr class="row-kosong" style="background: #f9fafb;">
+            <td style="text-align: center; font-weight: bold; border: 1.5px solid #334155; padding: 8px 6px; vertical-align: middle; color: #94a3b8;">—</td>
+            <td style="text-align: center; font-weight: 700; color: #64748b; border: 1.5px solid #334155; padding: 8px; font-size: 9.5pt; vertical-align: middle; white-space: nowrap;">
+              ${item.timeStart} - ${item.timeEnd}
             </td>
-            <td style="border: 1.5px solid #334155; padding: 8px 10px; vertical-align: middle;">
-              <span style="background:#dcfce7; color:#15803d; font-weight:800; padding:2px 8px; border-radius:4px; font-size:8pt; border:1px solid #86efac; display:inline-block; margin-bottom:3px;">
-                🟢 MASA KOSONG (WAKTU TERBUKA)
-              </span>
-              <div style="font-weight: 800; font-size: 10pt; color: #15803d;">${item.title}</div>
-              <div style="font-size: 8pt; color: #166534; margin-top: 1px;">${item.desc}</div>
-            </td>
-            <td style="text-align: center; border: 1.5px solid #334155; padding: 8px; vertical-align: middle; font-weight: 700; font-size: 9pt; color: #15803d;">
-              Murid / Guru / Klien Terbuka
-            </td>
-            <td style="border: 1.5px solid #334155; padding: 8px; vertical-align: middle; font-size: 8.5pt; color: #166534;">
-              📍 Bilik UBK (Boleh terus jumpa Cikgu)
-            </td>
+            <td style="border: 1.5px solid #334155; padding: 8px 10px; vertical-align: middle;"></td>
+            <td style="border: 1.5px solid #334155; padding: 8px; vertical-align: middle;"></td>
+            <td style="border: 1.5px solid #334155; padding: 8px; vertical-align: middle;"></td>
           </tr>
         `;
       } else {
@@ -5527,15 +5520,6 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
           </tbody>
         </table>
 
-        <div class="notice-box">
-          <h4>📌 Peringatan Mesra untuk Murid & Rujukan Guru Kelas:</h4>
-          <ol>
-            <li><strong>Masa Kosong / Waktu Terbuka:</strong> Waktu berlabel <span style="color:#15803d; font-weight:bold;">🟢 MASA KOSONG</span> adalah waktu lapang Cikgu. Murid dan guru dialu-alukan hadir ke Bilik Kaunseling untuk bimbingan atau membuat temu janji.</li>
-            <li><strong>Kehadiran Tepat Pada Masa:</strong> Murid yang tersenarai untuk Sesi Kaunseling Individu (KI), Kelompok, atau Bimbingan diminta hadir ke Bilik Kaunseling mengikut masa yang ditetapkan.</li>
-            <li><strong>Makluman Guru:</strong> Sila maklumkan dan mohon kebenaran guru mata pelajaran yang berada di dalam kelas sebelum keluar ke Bilik UBK.</li>
-            <li><strong>Kerahsiaan & Ruang Selamat:</strong> Segala perkongsian dan perbincangan di Bilik Kaunseling adalah **SULIT dan DILINDUNGI ETIKA** perkhidmatan kaunseling.</li>
-          </ol>
-        </div>
 
         <div class="signatures">
           <div class="sig-col">
@@ -6956,23 +6940,37 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
     let totPel_L = 0, totPel_P = 0;
 
     const rowsHtml = sessions.map((s, idx) => {
-      // Maklumat Murid
+      // Maklumat Murid — NAMA PENUH & KELAS SAHAJA (tiada IC — Etika Kerahsiaan)
       let namaKlien = s.classTarget && s.classTarget !== '-' ? s.classTarget : (s.title || "Klien");
-      let icMurid = "-";
+      let kelasKlien = s.classTarget && s.classTarget !== '-' ? s.classTarget : "-";
       let gender = "L";
 
-      if (s.students && s.students.length > 0 && typeof SENARAI_MURID !== 'undefined') {
+      if (s.students && s.students.length > 0) {
+        // Cuba cari dari SENARAI_MURID jika tersedia
         if (s.students.length === 1) {
-          const m = SENARAI_MURID.find(std => std.idMurid === s.students[0] || std.name === s.students[0]);
+          const studentRef = s.students[0];
+          const studentName = (typeof studentRef === 'object') ? (studentRef.name || '') : studentRef;
+          const studentClass = (typeof studentRef === 'object' && studentRef.className) ? studentRef.className : s.classTarget;
+
+          let m = null;
+          if (typeof SENARAI_MURID !== 'undefined') {
+            m = SENARAI_MURID.find(std =>
+              (std.name && studentName && std.name.toUpperCase() === studentName.toUpperCase()) ||
+              (std.idMurid && std.idMurid === studentRef)
+            );
+          }
+
           if (m) {
             namaKlien = `${m.name} (${m.className})`;
-            icMurid = m.ic;
-            gender = m.gender;
+            kelasKlien = m.className || studentClass || "-";
+            gender = m.gender || "L";
           } else {
-            namaKlien = s.students[0];
+            namaKlien = studentName ? `${studentName}${studentClass ? ' (' + studentClass + ')' : ''}` : (s.title || "Klien");
+            kelasKlien = studentClass || s.classTarget || "-";
           }
         } else {
           namaKlien = `${s.classTarget && s.classTarget !== '-' ? s.classTarget + ': ' : ''}${s.students.length} Orang Murid`;
+          kelasKlien = s.classTarget || "-";
         }
       }
 
@@ -7057,7 +7055,7 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
           <td style="text-align: center; border: 1px solid #000; font-size: 8pt; padding: 4px; white-space: nowrap;">
             ${s.dateStr}<br>${s.timeStart} - ${s.timeEnd}
           </td>
-          <td style="text-align: center; border: 1px solid #000; font-size: 8pt; padding: 4px;">${icMurid}</td>
+          <td style="text-align: center; border: 1px solid #000; font-size: 8pt; padding: 4px;">${kelasKlien}</td>
           
           <!-- Status -->
           <td style="text-align: center; border: 1px solid #000; font-size: 8pt; padding: 2px;">${isB}</td>
@@ -7173,7 +7171,7 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
               <th rowspan="2" style="width: 3%; border: 1px solid #000; text-align: center; padding: 3px; background: #fff;">Bil.</th>
               <th rowspan="2" style="width: 14%; border: 1px solid #000; text-align: center; padding: 3px; background: #fff;">Nama Klien / Rujukan</th>
               <th rowspan="2" style="width: 9%; border: 1px solid #000; text-align: center; padding: 3px; background: #fff;">Tarikh / Masa Sesi</th>
-              <th rowspan="2" style="width: 9%; border: 1px solid #000; text-align: center; padding: 3px; background: #fff;">No Kad Pengenalan</th>
+              <th rowspan="2" style="width: 9%; border: 1px solid #000; text-align: center; padding: 3px; background: #fff;">Kelas</th>
               <th colspan="3" style="border: 1px solid #000; text-align: center; padding: 2px; background: #fff;">Status</th>
               <th colspan="12" style="border: 1px solid #000; text-align: center; padding: 2px; background: #fff;">Jenis Intervensi</th>
               <th colspan="8" style="border: 1px solid #000; text-align: center; padding: 2px; background: #fff;">Cara Hadir</th>
