@@ -44,13 +44,11 @@ const PRACTICUM_WEEKS = [
       SELASA: "Cuti Umum Maulidur Rasul"
     },
     sessions: [
-      { day: "ISNIN", timeStart: "07.00", timeEnd: "12.40", title: "CUTI PERISTIWA DAN CUTI UMUM MAULIDUR RASUL", type: "cuti", classTarget: "-" },
-      { day: "SELASA", timeStart: "07.00", timeEnd: "12.40", title: "CUTI PERISTIWA DAN CUTI UMUM MAULIDUR RASUL", type: "cuti", classTarget: "-" },
       { day: "RABU", timeStart: "08.10", timeEnd: "09.10", title: "KELOMPOK 1 (URUS EMOSI)", type: "kelompok", classTarget: "Kelompok 1", sessionTag: "Sesi 2", clientStatus: "K" },
       { day: "RABU", timeStart: "10.40", timeEnd: "11.40", title: "4 ARIF (TENTANG SAYA)", type: "bimbingan", classTarget: "4 ARIF", isRelief: true, focus: "sahsiah", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan aktiviti bimbingan (Tentang Saya)" },
       { day: "KHAMIS", timeStart: "08.40", timeEnd: "09.40", title: "5 BESTARI (KERJAYA)", type: "bimbingan", classTarget: "5 BESTARI", isRelief: true, focus: "kerjaya", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan aktiviti bimbingan kerjaya murid" },
       { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "KELOMPOK 2 (KENALI DIRI)", type: "kelompok", classTarget: "Kelompok 2", sessionTag: "Sesi 1", clientStatus: "B" },
-      { day: "JUMAAT", timeStart: "07.40", timeEnd: "08.40", title: "KI107", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
+      { day: "JUMAAT", timeStart: "07.40", timeEnd: "08.40", title: "KI07", type: "individu", classTarget: "Individu", sessionTag: "Sesi 1", clientStatus: "B" },
       { day: "JUMAAT", timeStart: "09.10", timeEnd: "12.40", title: "PROGRAM KEMERDEKAAN DAN PERSARAAN", type: "program", classTarget: "Sekolah" }
     ]
   },
@@ -97,7 +95,6 @@ const PRACTICUM_WEEKS = [
       { day: "ISNIN", timeStart: "10.40", timeEnd: "12.10", title: "KELOMPOK 2 (KONSEP KENDIRI)", type: "kelompok", classTarget: "Kelompok 2", sessionTag: "Sesi 2", clientStatus: "K" },
       { day: "SELASA", timeStart: "07.00", timeEnd: "11.40", title: "PROGRAM CERAMAH BUKU TEKS, MAKANAN SIHAT DAN KESIHATAN MENTAL", type: "program", classTarget: "Sekolah" },
       { day: "SELASA", timeStart: "11.40", timeEnd: "12.40", title: "AKTIVITI BIMBINGAN PSIKOEDUKASI DISIPLIN", type: "bimbingan", classTarget: "Disiplin", isRelief: true, focus: "disiplin", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan psikoedukasi disiplin" },
-      { day: "RABU", timeStart: "07.00", timeEnd: "12.40", title: "CUTI UMUM HARI MALAYSIA", type: "cuti", classTarget: "-" },
       { day: "KHAMIS", timeStart: "07.00", timeEnd: "08.40", title: "SARINGAN MINDA SIHAT UNTUK YANG TIDAK HADIR 08/09", type: "saringan", classTarget: "UBK" },
       { day: "KHAMIS", timeStart: "10.10", timeEnd: "11.10", title: "6 ARIF PSIKOEDUKASI PERKHIDMATAN UBK", type: "bimbingan", classTarget: "6 ARIF", isRelief: true, focus: "psikososial", clientStatus: "D/J", arrivalWay: "rujukan", notes: "Kelas Menggantikan Guru (Relief) - Masuk ke kelas kerana ketiadaan guru, diisi dengan psikoedukasi UBK" },
       { day: "KHAMIS", timeStart: "11.10", timeEnd: "12.10", title: "BIMBINGAN KELOMPOK PSIKOSOSIAL", type: "kelompok", classTarget: "Kelompok Psikososial", sessionTag: "Sesi 1", clientStatus: "B" }

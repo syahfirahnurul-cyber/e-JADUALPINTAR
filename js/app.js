@@ -1000,7 +1000,7 @@ const App = {
     } else {
       const shown = todaySessions.slice(0, 4);
       sessionListHtml = shown.map(s => {
-        const typeIcon = {individu:'🟢', kelompok:'🔵', bimbingan:'🟣', program:'🟡', pentadbiran:'🔷', cuti:'🔴', penyeliaan:'⬜', programLain:'🔶'}[s.type] || '⚪';
+        const typeIcon = {individu:'🟢', kelompok:'🔵', bimbingan:'🟣', program:'🟡', pentadbiran:'🔷', cuti:'🔴', penyeliaan:'⬜', programLain:'🔶', kokurikulum:'⬜'}[s.type] || '⚪';
         const statusIcon = s.status === 'selesai' ? '✓' : (s.status === 'tunda' ? '✗' : '•');
         return `<div class="today-session-item">
           <span class="time-chip">${s.timeStart}–${s.timeEnd}</span>
@@ -3343,8 +3343,8 @@ const App = {
 
       w.sessions.forEach(s => {
         const dur = timeToMin(s.timeEnd) - timeToMin(s.timeStart);
-        // PENTING: 'penyeliaan' dan 'programLain' TIDAK dikira dalam mana-mana jam
-        if (s.type === 'penyeliaan' || s.type === 'programLain') return;
+        // PENTING: 'penyeliaan', 'programLain', dan 'kokurikulum' TIDAK dikira dalam mana-mana jam
+        if (s.type === 'penyeliaan' || s.type === 'programLain' || s.type === 'kokurikulum') return;
         if (dur > 0 && dur <= 480) {
           if (s.type === 'individu') {
             wKIMin += dur; wKI++;
@@ -3371,8 +3371,8 @@ const App = {
       const wAdminTotalMin = wAdminSchedMin + wAutoDocMin;
       const weekTotalMin = wKIMin + wKelMin + wBimMin + wAdminTotalMin + wProgMin;
 
-      // Sesi aktif sebenar (tidak termasuk cuti, penyeliaan atau program luar)
-      const activeSessionsCount = w.sessions.filter(s => s.type !== 'cuti' && s.type !== 'penyeliaan' && s.type !== 'programLain').length;
+      // Sesi aktif sebenar (tidak termasuk cuti, penyeliaan, program luar atau kokurikulum)
+      const activeSessionsCount = w.sessions.filter(s => s.type !== 'cuti' && s.type !== 'penyeliaan' && s.type !== 'programLain' && s.type !== 'kokurikulum').length;
 
       weeklyBreakdown.push({
         weekNum: w.weekNum,
@@ -3416,9 +3416,29 @@ const App = {
     const progHours = (totalProgramMin / 60).toFixed(1);
     const directContactHours = (totalDirectMin / 60).toFixed(1);
 
-    // Sasaran Praktikum Piawai (~160 jam kumulatif)
-    const targetKumulatif = 160;
+    // =========================================================
+    // SASARAN MINIMUM PRAKTIKUM TERKINI (SK TAMPASUK 1 / IPG):
+    // JUMLAH KESELURUHAN: 252 JAM (MINIMUM)
+    // - Intervensi Langsung (Direct Contact): 96 Jam (MINIMUM)
+    //   * Kaunseling Individu (KI): 30 Jam (Min)
+    //   * Kaunseling Kelompok (KK): 20 Jam (Min)
+    //   * Bimbingan Kelas / Kelompok: 46 Jam (Min)
+    // - Pentadbiran, Pengurusan, Program & Dok (Indirect): 156 Jam
+    // - Kokurikulum: TIDAK LAGI DIKIRA
+    // =========================================================
+    const targetKumulatif = 252;
+    const targetDirectTotal = 96;
+    const targetKI = 30;
+    const targetKK = 20;
+    const targetBim = 46;
+    const targetIndirect = 156;
+
     const progressPercent = Math.min(100, Math.round((parseFloat(grandHours) / targetKumulatif) * 100));
+    const directPercent = Math.min(100, Math.round((parseFloat(directContactHours) / targetDirectTotal) * 100));
+    const kiPercent = Math.min(100, Math.round((parseFloat(kiHours) / targetKI) * 100));
+    const kkPercent = Math.min(100, Math.round((parseFloat(kelHours) / targetKK) * 100));
+    const bimPercent = Math.min(100, Math.round((parseFloat(bimHours) / targetBim) * 100));
+    const adminPercent = Math.min(100, Math.round((parseFloat(adminTotalHours) / targetIndirect) * 100));
 
     let html = `
       <!-- Pilihan Kadar Masa Dokumentasi Automatik -->
@@ -3444,72 +3464,111 @@ const App = {
         </div>
       </div>
 
-      <!-- Ringkasan Jam Utama (5 Kad) -->
+      <!-- Ringkasan Jam Utama (5 Kad Mengikut KPI 252 Jam) -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
         <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 1.25rem; text-align: center;">
-          <div style="font-size: 0.82rem; font-weight: 700; color: #166534; text-transform: uppercase;">Jumlah Jam Keseluruhan</div>
-          <div style="font-family: 'Outfit'; font-size: 2.3rem; font-weight: 800; color: #15803d; margin: 4px 0;">${grandHours} Jam</div>
-          <div style="font-size: 0.76rem; color: #15803d;">Kumulatif Minggu 1 - 10</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: #166534; text-transform: uppercase;">Jumlah Keseluruhan (Min 252j)</div>
+          <div style="font-family: 'Outfit'; font-size: 2.2rem; font-weight: 800; color: #15803d; margin: 4px 0;">${grandHours} <span style="font-size:1.1rem; font-weight:600; color:#166534;">/ 252j</span></div>
+          <div style="font-size: 0.75rem; font-weight: 700; color: #15803d;">${progressPercent}% Sasaran • Baki: ${Math.max(0, targetKumulatif - parseFloat(grandHours)).toFixed(1)}j</div>
         </div>
 
         <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 1.25rem; text-align: center;">
-          <div style="font-size: 0.82rem; font-weight: 700; color: #1e40af; text-transform: uppercase;">Kaunseling Individu (KI)</div>
-          <div style="font-family: 'Outfit'; font-size: 2.3rem; font-weight: 800; color: #1d4ed8; margin: 4px 0;">${kiHours} Jam</div>
-          <div style="font-size: 0.76rem; color: #1e40af;">${totalKISessions} Sesi Individu</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">Kaunseling Individu (Min 30j)</div>
+          <div style="font-family: 'Outfit'; font-size: 2.2rem; font-weight: 800; color: #1d4ed8; margin: 4px 0;">${kiHours} <span style="font-size:1.1rem; font-weight:600; color:#1e40af;">/ 30j</span></div>
+          <div style="font-size: 0.75rem; font-weight: 700; color: ${parseFloat(kiHours) >= targetKI ? '#15803d' : '#1e40af'};">
+            ${kiPercent}% • ${parseFloat(kiHours) >= targetKI ? '✅ Capai Min (30j)' : 'Baki ' + (targetKI - parseFloat(kiHours)).toFixed(1) + 'j'} • ${totalKISessions} Sesi
+          </div>
         </div>
 
         <div style="background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 12px; padding: 1.25rem; text-align: center;">
-          <div style="font-size: 0.82rem; font-weight: 700; color: #3730a3; text-transform: uppercase;">Kaunseling Kelompok</div>
-          <div style="font-family: 'Outfit'; font-size: 2.3rem; font-weight: 800; color: #4338ca; margin: 4px 0;">${kelHours} Jam</div>
-          <div style="font-size: 0.76rem; color: #3730a3;">${totalKelompokSessions} Sesi Kelompok</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: #3730a3; text-transform: uppercase;">Kaunseling Kelompok (Min 20j)</div>
+          <div style="font-family: 'Outfit'; font-size: 2.2rem; font-weight: 800; color: #4338ca; margin: 4px 0;">${kelHours} <span style="font-size:1.1rem; font-weight:600; color:#3730a3;">/ 20j</span></div>
+          <div style="font-size: 0.75rem; font-weight: 700; color: ${parseFloat(kelHours) >= targetKK ? '#15803d' : '#3730a3'};">
+            ${kkPercent}% • ${parseFloat(kelHours) >= targetKK ? '✅ Capai Min (20j)' : 'Baki ' + (targetKK - parseFloat(kelHours)).toFixed(1) + 'j'} • ${totalKelompokSessions} Sesi
+          </div>
         </div>
 
         <div style="background: #faf5ff; border: 1.5px solid #e9d5ff; border-radius: 12px; padding: 1.25rem; text-align: center;">
-          <div style="font-size: 0.82rem; font-weight: 700; color: #6b21a8; text-transform: uppercase;">Bimbingan & Psikoedukasi</div>
-          <div style="font-family: 'Outfit'; font-size: 2.3rem; font-weight: 800; color: #7e22ce; margin: 4px 0;">${bimHours} Jam</div>
-          <div style="font-size: 0.76rem; color: #6b21a8;">${totalBimbinganSessions} Kelas Bimbingan</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: #6b21a8; text-transform: uppercase;">Bimbingan Kelas (Min 46j)</div>
+          <div style="font-family: 'Outfit'; font-size: 2.2rem; font-weight: 800; color: #7e22ce; margin: 4px 0;">${bimHours} <span style="font-size:1.1rem; font-weight:600; color:#6b21a8;">/ 46j</span></div>
+          <div style="font-size: 0.75rem; font-weight: 700; color: ${parseFloat(bimHours) >= targetBim ? '#15803d' : '#6b21a8'};">
+            ${bimPercent}% • ${parseFloat(bimHours) >= targetBim ? '✅ Capai Min (46j)' : 'Baki ' + (targetBim - parseFloat(bimHours)).toFixed(1) + 'j'} • ${totalBimbinganSessions} Kelas
+          </div>
         </div>
 
         <div style="background: #ecfeff; border: 1.5px solid #a5f3fc; border-radius: 12px; padding: 1.25rem; text-align: center;">
-          <div style="font-size: 0.82rem; font-weight: 700; color: #0e7490; text-transform: uppercase;">Pentadbiran & Dokumentasi</div>
-          <div style="font-family: 'Outfit'; font-size: 2.3rem; font-weight: 800; color: #0891b2; margin: 4px 0;">${adminTotalHours} Jam</div>
-          <div style="font-size: 0.76rem; color: #0e7490;">${autoDocHours}j Auto-Dok + ${adminSchedHours}j Berjadual</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: #0e7490; text-transform: uppercase;">Pentadbiran & Dok (156j)</div>
+          <div style="font-family: 'Outfit'; font-size: 2.2rem; font-weight: 800; color: #0891b2; margin: 4px 0;">${adminTotalHours} <span style="font-size:1.1rem; font-weight:600; color:#0e7490;">/ 156j</span></div>
+          <div style="font-size: 0.75rem; font-weight: 700; color: #0e7490;">
+            ${adminPercent}% • ${autoDocHours}j Dok + ${adminSchedHours}j Berjadual
+          </div>
         </div>
       </div>
 
       <!-- Kad Analisis Piawai Buku Log Praktikum UBK (Direct vs Indirect Hours) -->
       <div class="practicum-breakdown-card">
         <div class="breakdown-item">
-          <span style="font-size: 0.78rem; font-weight: 700; color: #1e40af; text-transform: uppercase;">🎯 Jam Intervensi Langsung (Direct Contact)</span>
-          <span style="font-size: 1.4rem; font-weight: 800; color: #1d4ed8; margin: 2px 0;">${directContactHours} Jam</span>
-          <span style="font-size: 0.74rem; color: #64748b;">${totalDirectSessions} Sesi Bersemuka (KI, Kelompok, Bimbingan)</span>
+          <span style="font-size: 0.78rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">🎯 Jam Intervensi Langsung (Min: 96 Jam)</span>
+          <span style="font-size: 1.45rem; font-weight: 800; color: #1d4ed8; margin: 2px 0;">${directContactHours} / 96 Jam</span>
+          <span style="font-size: 0.76rem; font-weight: 700; color: ${parseFloat(directContactHours) >= targetDirectTotal ? '#15803d' : '#b45309'}; margin-bottom: 2px;">
+            ${parseFloat(directContactHours) >= targetDirectTotal ? '✅ KPI Minimum 96 Jam Bersemuka Tercapai!' : '⏳ Baki ' + (targetDirectTotal - parseFloat(directContactHours)).toFixed(1) + ' Jam untuk Capai 96 Jam'}
+          </span>
+          <span style="font-size: 0.72rem; color: #64748b;">Agihan Min: KI 30j + KK 20j + Bimbingan 46j (${totalDirectSessions} Sesi Bersemuka)</span>
         </div>
         <div style="width: 1px; height: 50px; background: #cbd5e1;" class="d-none d-md-block"></div>
         <div class="breakdown-item highlight">
-          <span style="font-size: 0.78rem; font-weight: 700; color: #0e7490; text-transform: uppercase;">📋 Jam Pentadbiran & Pengurusan (Indirect)</span>
-          <span style="font-size: 1.4rem; font-weight: 800; color: #0891b2; margin: 2px 0;">${adminTotalHours} Jam</span>
+          <span style="font-size: 0.78rem; font-weight: 800; color: #0e7490; text-transform: uppercase;">📋 Jam Pentadbiran & Pengurusan (Indirect: 156j)</span>
+          <span style="font-size: 1.45rem; font-weight: 800; color: #0891b2; margin: 2px 0;">${adminTotalHours} Jam</span>
           <span style="font-size: 0.74rem; color: #0e7490;">${autoDocHours}j Dokumentasi Automatik + ${adminSchedHours}j Pengurusan Bilik & HEM</span>
         </div>
         <div style="width: 1px; height: 50px; background: #cbd5e1;" class="d-none d-md-block"></div>
         <div class="breakdown-item">
-          <span style="font-size: 0.78rem; font-weight: 700; color: #92400e; text-transform: uppercase;">🏫 Jam Program Sekolah</span>
-          <span style="font-size: 1.4rem; font-weight: 800; color: #b45309; margin: 2px 0;">${progHours} Jam</span>
+          <span style="font-size: 0.78rem; font-weight: 800; color: #92400e; text-transform: uppercase;">🏫 Jam Program Sekolah</span>
+          <span style="font-size: 1.45rem; font-weight: 800; color: #b45309; margin: 2px 0;">${progHours} Jam</span>
           <span style="font-size: 0.74rem; color: #64748b;">${totalProgramSessions} Aktiviti / Majlis / Kursus Sekolah</span>
         </div>
       </div>
 
-      <!-- Meter Kemajuan Jam Praktikum -->
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <span style="font-weight: 700; font-size: 0.95rem; color: #0f172a;">Kemajuan Sasaran Jam Praktikum (Sasaran Standard: ${targetKumulatif} Jam)</span>
-          <span style="font-weight: 800; font-size: 1rem; color: #1e3a8a;">${progressPercent}%</span>
+      <!-- Meter Kemajuan Jam Praktikum (252 Jam & 96 Jam Intervensi) -->
+      <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+          <span style="font-weight: 800; font-size: 0.95rem; color: #0f172a;">
+            📊 Kemajuan Jumlah Jam Praktikum: <span style="color:#15803d;">${grandHours} / 252 Jam</span> (Sasaran Minimum)
+          </span>
+          <span style="font-weight: 800; font-size: 0.95rem; color: #1e3a8a; background: #dbeafe; padding: 2px 10px; border-radius: 6px;">
+            ${progressPercent}%
+          </span>
         </div>
-        <div style="background: #e2e8f0; height: 14px; border-radius: 10px; overflow: hidden;">
+        <div style="background: #e2e8f0; height: 16px; border-radius: 10px; overflow: hidden; margin-bottom: 6px;">
           <div style="background: linear-gradient(90deg, #10b981, #0284c7); height: 100%; width: ${progressPercent}%; border-radius: 10px; transition: width 0.4s ease;"></div>
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-top: 4px;">
-          <span>Terkumpul: ${grandHours} Jam (Termasuk ${adminTotalHours}j Pentadbiran & Dok)</span>
-          <span>Baki Sasaran: ${Math.max(0, targetKumulatif - parseFloat(grandHours)).toFixed(1)} Jam</span>
+        <div style="display: flex; justify-content: space-between; font-size: 0.76rem; color: #64748b; margin-bottom: 1rem; flex-wrap: wrap; gap: 4px;">
+          <span>Terkumpul: <strong>${grandHours} Jam</strong> (Intervensi: ${directContactHours}j + Pentadbiran: ${adminTotalHours}j + Program: ${progHours}j)</span>
+          <span>Baki Keseluruhan: <strong style="color: ${parseFloat(grandHours) >= targetKumulatif ? '#15803d' : '#b45309'};">${Math.max(0, targetKumulatif - parseFloat(grandHours)).toFixed(1)} Jam</strong></span>
+        </div>
+
+        <!-- Sub-Meter Intervensi Langsung (96 Jam) -->
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.85rem; margin-top: 0.5rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; flex-wrap: wrap; gap: 4px;">
+            <span style="font-size: 0.82rem; font-weight: 800; color: #1e40af;">
+              🎯 Intervensi Langsung (Direct Contact): ${directContactHours} / 96 Jam (Min)
+            </span>
+            <span style="font-size: 0.78rem; font-weight: 800; color: ${parseFloat(directContactHours) >= targetDirectTotal ? '#15803d' : '#1d4ed8'};">
+              ${directPercent}% ${parseFloat(directContactHours) >= targetDirectTotal ? '✓ Tercapai' : ''}
+            </span>
+          </div>
+          <div style="background: #f1f5f9; height: 10px; border-radius: 6px; overflow: hidden; margin-bottom: 6px;">
+            <div style="background: linear-gradient(90deg, #3b82f6, #8b5cf6); height: 100%; width: ${directPercent}%; border-radius: 6px;"></div>
+          </div>
+          <div style="display: flex; gap: 10px; font-size: 0.74rem; color: #475569; flex-wrap: wrap;">
+            <span>👤 KI: <strong>${kiHours} / 30j</strong> (${kiPercent}%)</span>
+            <span>•</span>
+            <span>👥 KK: <strong>${kelHours} / 20j</strong> (${kkPercent}%)</span>
+            <span>•</span>
+            <span>📚 Bimbingan: <strong>${bimHours} / 46j</strong> (${bimPercent}%)</span>
+            <span>•</span>
+            <span style="color:#64748b; font-style:italic;">*Kokurikulum tidak lagi dikira dalam jam praktikum</span>
+          </div>
         </div>
       </div>
 
@@ -3649,7 +3708,8 @@ const App = {
           : (s.type === 'program' ? 'Program Kaunseling Berfokus'
           : (s.type === 'penyeliaan' ? 'Penyeliaan Pensyarah (Tidak Dikira)'
           : (s.type === 'programLain' ? 'Program Sekolah Lain (Tidak Dikira)'
-          : 'Cuti/Pelepasan')))));
+          : (s.type === 'kokurikulum' ? 'Kokurikulum (Tidak Dikira)'
+          : 'Cuti/Pelepasan'))))));
         
         const durMin = Math.max(0, timeToMin(s.timeEnd) - timeToMin(s.timeStart));
         const autoDocMin = isDirect ? docRate : 0;
@@ -4543,6 +4603,7 @@ const App = {
     }
 
     document.getElementById("sessionModal").classList.add("active");
+    this.handleFormTypeChange("individu");
     this.updateFormSaveBtnColor();
     this.checkFormConflict();
     this.renderClassSuggestions();
@@ -4642,6 +4703,9 @@ const App = {
     const bimbinganNotice = document.getElementById("bimbinganNoticeBox");
     if (bimbinganNotice) bimbinganNotice.style.display = (session.type === "bimbingan" || isRelief) ? "block" : "none";
 
+    this.handleFormTypeChange(session.type);
+    if (headcountEl) headcountEl.value = session.headcount || 1;
+
     document.getElementById("sessionModal").classList.add("active");
     this.updateFormSaveBtnColor();
     this.checkFormConflict();
@@ -4661,14 +4725,14 @@ const App = {
         headcountEl.value = "6";
       } else if (type === "bimbingan" && (!headcountEl.value || headcountEl.value === "1" || headcountEl.value === "6")) {
         headcountEl.value = "28";
-      } else if (type === "pentadbiran" || type === "cuti" || type === "penyeliaan" || type === "programLain") {
+      } else if (type === "pentadbiran" || type === "cuti" || type === "penyeliaan" || type === "programLain" || type === "kokurikulum") {
         headcountEl.value = "0";
       }
     }
 
     // Papar/sembunyi blok murid berdasarkan jenis sesi
     const studentSection = document.getElementById("studentSelectionSection");
-    const isNonStudentType = (type === "pentadbiran" || type === "cuti" || type === "penyeliaan" || type === "programLain" || type === "konsultasi");
+    const isNonStudentType = (type === "pentadbiran" || type === "cuti" || type === "penyeliaan" || type === "programLain" || type === "kokurikulum" || type === "konsultasi");
     if (studentSection) studentSection.style.display = isNonStudentType ? "none" : "";
 
     if (type === "bimbingan") {
@@ -4679,7 +4743,7 @@ const App = {
     }
 
     // Sembunyi toggle relief bagi jenis bukan kaunseling
-    if (type === "penyeliaan" || type === "programLain" || type === "cuti") {
+    if (type === "penyeliaan" || type === "programLain" || type === "kokurikulum" || type === "cuti") {
       const reliefContainer = document.getElementById("reliefToggleContainer");
       if (reliefContainer) reliefContainer.style.display = "none";
     }
@@ -5905,7 +5969,7 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
   },
 
   getIpgmPeriodLabel: function(period) {
-    if (!period || period === "all") return "Keseluruhan Tempoh Praktikum (Minggu 1 - 10 / 17 Ogos - 23 Okt 2026)";
+    if (!period || period === "all") return "Keseluruhan Tempoh Praktikum (Minggu 1 - 10 / 17 Ogos - 30 Okt 2026)";
     if (period === "current") {
       const cur = this.state.currentWeek || 1;
       const wObj = this.state.practicumData.find(w => w.weekNum === cur);
@@ -5932,7 +5996,10 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
       const weekDates = w.dates || {};
       if (w.sessions && Array.isArray(w.sessions)) {
         w.sessions.forEach(s => {
-          if (s.type === 'cuti') return;
+          // Hanya sesi perkhidmatan sebenar masuk borang IPGM. Pentadbiran, penyeliaan pensyarah,
+          // program sekolah lain, kokurikulum & cuti hanyalah penanda masa — bukan rekod klien.
+          const IPGM_SERVICE_TYPES = ['individu', 'kelompok', 'bimbingan', 'konsultasi', 'program', 'saringan'];
+          if (!IPGM_SERVICE_TYPES.includes(s.type)) return;
           const dateStr = weekDates[s.day] || "-";
           allSessions.push({
             ...s,
@@ -5943,6 +6010,12 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
       }
     });
 
+    // Bulan sebenar sesi (dd/mm/yyyy) — Minggu 6 (28 Sep - 2 Okt) merentasi dua bulan
+    const monthOf = (s) => {
+      const m = /^\d{1,2}\/(\d{1,2})\/\d{4}$/.exec(s.dateStr || "");
+      return m ? parseInt(m[1], 10) : null;
+    };
+
     if (period === "all") {
       return allSessions;
     }
@@ -5951,13 +6024,13 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
       return allSessions.filter(s => s.weekNum === cur);
     }
     if (period === "m_aug") {
-      return allSessions.filter(s => s.weekNum >= 1 && s.weekNum <= 2);
+      return allSessions.filter(s => monthOf(s) === 8);
     }
     if (period === "m_sep") {
-      return allSessions.filter(s => s.weekNum >= 3 && s.weekNum <= 5);
+      return allSessions.filter(s => monthOf(s) === 9);
     }
     if (period === "m_oct") {
-      return allSessions.filter(s => s.weekNum >= 6 && s.weekNum <= 10);
+      return allSessions.filter(s => monthOf(s) === 10);
     }
     if (period.startsWith("w") || period.startsWith("m")) {
       const numStr = period.replace(/[^0-9]/g, "");
@@ -7627,7 +7700,10 @@ Status Buku Rekod: SIAP & PATUH PIAWAIAN IPGM / KPM!
       bimbingan: "Bimbingan Kelas",
       program: "Program",
       pentadbiran: "Pentadbiran",
-      cuti: "Cuti"
+      cuti: "Cuti",
+      penyeliaan: "Penyeliaan Pensyarah",
+      programLain: "Program Sekolah",
+      kokurikulum: "Kokurikulum"
     };
     return labels[type] || type;
   }
